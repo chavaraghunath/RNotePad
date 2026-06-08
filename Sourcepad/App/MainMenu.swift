@@ -322,6 +322,23 @@ public enum MainMenu {
         toolsMenu.addItem(withTitle: "Regex Tester…",
                           action: Selector(("sourcepadOpenRegexTester:")),
                           keyEquivalent: "")
+        toolsMenu.addItem(.separator())
+        toolsMenu.addItem(withTitle: "Git Branches…",
+                          action: Selector(("sourcepadShowBranchPicker:")),
+                          keyEquivalent: "")
+        toolsMenu.addItem(withTitle: "Follow File (tail -f)",
+                          action: Selector(("sourcepadFollowTail:")),
+                          keyEquivalent: "")
+        toolsMenu.addItem(.separator())
+        toolsMenu.addItem(withTitle: "Open Themes Folder",
+                          action: Selector(("sourcepadRevealThemesFolder:")),
+                          keyEquivalent: "")
+        toolsMenu.addItem(withTitle: "Edit Keymap…",
+                          action: Selector(("sourcepadRevealKeymap:")),
+                          keyEquivalent: "")
+        toolsMenu.addItem(withTitle: "Open Plugins Folder",
+                          action: Selector(("sourcepadRevealPluginsFolder:")),
+                          keyEquivalent: "")
 
         // MARK: Notes menu (Phase 19–21)
         let notesItem = NSMenuItem()

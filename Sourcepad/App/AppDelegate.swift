@@ -21,6 +21,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Phase 26: clipboard ring background polling.
         ClipboardRing.shared.start()
 
+        // Phase 35: discover + load user JS plugins.
+        PluginHost.shared.loadAll()
+
         NSApp.mainMenu = MainMenu.build()
         NSApp.activate(ignoringOtherApps: true)
 
@@ -132,6 +135,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc public func sourcepadShowClipboardRing(_ sender: Any?) {
         guard let view = NSApp.keyWindow?.contentView else { NSSound.beep(); return }
         ClipboardRing.shared.showPicker(anchor: view)
+    }
+
+    @objc public func sourcepadShowBranchPicker(_ sender: Any?) {
+        GitBranchUI.showBranchPicker()
+    }
+
+    @objc public func sourcepadRevealThemesFolder(_ sender: Any?) {
+        ThemeStudio.revealFolder()
+    }
+
+    @objc public func sourcepadRevealKeymap(_ sender: Any?) {
+        KeymapStudio.revealFile()
+    }
+
+    @objc public func sourcepadRevealPluginsFolder(_ sender: Any?) {
+        PluginHost.shared.revealFolder()
+    }
+
+    @objc public func sourcepadFollowTail(_ sender: Any?) {
+        guard let doc = NSDocumentController.shared.currentDocument as? TextDocument,
+              let url = doc.fileURL,
+              let pane = doc.primaryEditorViewController()?.editorPane else { return }
+        TailMode.shared.startFollowing(url, pane: pane)
     }
 
     @objc public func sourcepadTransform(_ sender: Any?) {

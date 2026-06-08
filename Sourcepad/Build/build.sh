@@ -173,6 +173,13 @@ SWIFT_SRCS=(
     "$APP_DIR/EditorPower/Formatters.swift"
     "$APP_DIR/EditorPower/UtilityTransforms.swift"
     "$APP_DIR/Tools/RegexTesterWindow.swift"
+    "$APP_DIR/Scale/TailMode.swift"
+    "$APP_DIR/Remote/GitBranchUI.swift"
+    "$APP_DIR/Themes/ThemeStudio.swift"
+    "$APP_DIR/Plugins/PluginHost.swift"
+    "$APP_DIR/Debug/DAPClient.swift"
+    "$APP_DIR/Collab/CRDTDoc.swift"
+    "$APP_DIR/Vault/TouchIDVault.swift"
 )
 
 swiftc "${SWIFT_SRCS[@]}" \
