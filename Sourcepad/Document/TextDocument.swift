@@ -81,13 +81,43 @@ public final class TextDocument: NSDocument {
         if let editor = primaryEditorViewController() {
             self.contents = editor.currentText
         }
-        var data = self.contents.data(using: encoding, allowLossyConversion: false)
-            ?? self.contents.data(using: .utf8) ?? Data()
+        var working = self.contents
+        if Preferences.shared.trimTrailingWhitespaceOnSave {
+            working = TextDocument.trimTrailingLineWhitespace(working)
+            // Push trimmed back to the editor so the visible buffer matches the file.
+            if let editor = primaryEditorViewController(),
+               editor.editorPane.currentText != working {
+                editor.editorPane.replaceWholeBuffer(with: working)
+                self.contents = working
+            }
+        }
+        var data = working.data(using: encoding, allowLossyConversion: false)
+            ?? working.data(using: .utf8) ?? Data()
         if hasUTF8BOM, encoding == .utf8 {
             let bom: [UInt8] = [0xEF, 0xBB, 0xBF]
             data = Data(bom) + data
         }
         return data
+    }
+
+    /// Strip trailing spaces/tabs from each line but preserve CR / LF (so CRLF
+    /// files stay CRLF) and preserve a single trailing newline if present.
+    static func trimTrailingLineWhitespace(_ text: String) -> String {
+        var out = ""
+        var line = ""
+        for ch in text {
+            if ch == "\n" || ch == "\r" {
+                while let last = line.last, last == " " || last == "\t" { line.removeLast() }
+                out.append(line)
+                out.append(ch)
+                line = ""
+            } else {
+                line.append(ch)
+            }
+        }
+        while let last = line.last, last == " " || last == "\t" { line.removeLast() }
+        out.append(line)
+        return out
     }
 
     public override func write(to url: URL, ofType typeName: String) throws {
@@ -96,7 +126,7 @@ public final class TextDocument: NSDocument {
         primaryEditorViewController()?.markSavePoint()
     }
 
-    private func primaryEditorViewController() -> EditorViewController? {
+    public func primaryEditorViewController() -> EditorViewController? {
         return windowControllers
             .compactMap { ($0 as? EditorWindowController)?.editorViewController }
             .first

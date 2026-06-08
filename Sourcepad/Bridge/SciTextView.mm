@@ -589,3 +589,68 @@ NSInteger SciSelectionCount(NSView *view) {
 void SciClearAdditionalSelections(NSView *view) {
     [(ScintillaView *)view message:SCI_CLEARSELECTIONS];
 }
+
+// MARK: - Markers
+
+void SciDefineBookmarkMarker(NSView *view, int markerNumber, NSColor *fg, NSColor *bg) {
+    ScintillaView *v = (ScintillaView *)view;
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:markerNumber value:SC_MARK_BOOKMARK];
+    if (fg) [v setColorProperty:SCI_MARKERSETFORE parameter:markerNumber value:fg];
+    if (bg) [v setColorProperty:SCI_MARKERSETBACK parameter:markerNumber value:bg];
+}
+
+void SciMarkerAdd(NSView *view, NSInteger line, int markerNumber) {
+    [(ScintillaView *)view message:SCI_MARKERADD wParam:(uptr_t)line lParam:(sptr_t)markerNumber];
+}
+
+void SciMarkerRemove(NSView *view, NSInteger line, int markerNumber) {
+    [(ScintillaView *)view message:SCI_MARKERDELETE wParam:(uptr_t)line lParam:(sptr_t)markerNumber];
+}
+
+BOOL SciMarkerExistsOnLine(NSView *view, NSInteger line, int markerNumber) {
+    sptr_t mask = [(ScintillaView *)view message:SCI_MARKERGET wParam:(uptr_t)line lParam:0];
+    return (mask & (1 << markerNumber)) != 0;
+}
+
+NSInteger SciMarkerNext(NSView *view, NSInteger fromLine, int markerNumber) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_MARKERNEXT
+                                              wParam:(uptr_t)fromLine
+                                              lParam:(sptr_t)(1 << markerNumber)];
+}
+
+NSInteger SciMarkerPrevious(NSView *view, NSInteger fromLine, int markerNumber) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_MARKERPREVIOUS
+                                              wParam:(uptr_t)fromLine
+                                              lParam:(sptr_t)(1 << markerNumber)];
+}
+
+void SciMarkerDeleteAll(NSView *view, int markerNumber) {
+    [(ScintillaView *)view message:SCI_MARKERDELETEALL wParam:(uptr_t)markerNumber lParam:0];
+}
+
+// MARK: - Per-line helpers
+
+NSString *SciGetLineText(NSView *view, NSInteger line) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t len = [v message:SCI_LINELENGTH wParam:(uptr_t)line lParam:0];
+    if (len <= 0) return @"";
+    char *buf = (char *)malloc((size_t)len + 1);
+    if (!buf) return @"";
+    buf[len] = 0;
+    [v message:SCI_GETLINE wParam:(uptr_t)line lParam:(sptr_t)buf];
+    NSString *out = [[NSString alloc] initWithBytes:buf length:(NSUInteger)len encoding:NSUTF8StringEncoding];
+    free(buf);
+    return out ?: @"";
+}
+
+NSInteger SciLineStartByte(NSView *view, NSInteger line) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_POSITIONFROMLINE wParam:(uptr_t)line lParam:0];
+}
+
+NSInteger SciLineEndByte(NSView *view, NSInteger line) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_GETLINEENDPOSITION wParam:(uptr_t)line lParam:0];
+}
+
+NSInteger SciLineFromByte(NSView *view, NSInteger byte) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_LINEFROMPOSITION wParam:(uptr_t)byte lParam:0];
+}

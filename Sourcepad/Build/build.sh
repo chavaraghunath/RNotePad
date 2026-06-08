@@ -58,6 +58,8 @@ SWIFT_SRCS=(
     "$APP_DIR/App/ClosedTabHistory.swift"
     "$APP_DIR/Editor/GoToLinePanel.swift"
     "$APP_DIR/Editor/AutoPair.swift"
+    "$APP_DIR/Editor/CommentSyntax.swift"
+    "$APP_DIR/Editor/Bookmarks.swift"
     "$APP_DIR/Document/TextDocument.swift"
     "$APP_DIR/Document/DocumentController.swift"
     "$APP_DIR/Editor/EditorWindowController.swift"

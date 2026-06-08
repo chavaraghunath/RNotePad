@@ -132,6 +132,67 @@ public enum MainMenu {
                          action: Selector(("sourcepadGoToLine:")),
                          keyEquivalent: "l")
 
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Toggle Line Comment",
+                         action: Selector(("sourcepadToggleLineComment:")),
+                         keyEquivalent: "/")
+
+        // Sort submenu
+        let sort = NSMenuItem(title: "Sort", action: nil, keyEquivalent: "")
+        let sortMenu = NSMenu(title: "Sort")
+        sort.submenu = sortMenu
+        sortMenu.addItem(withTitle: "Ascending",
+                         action: Selector(("sourcepadSortLinesAsc:")), keyEquivalent: "")
+        sortMenu.addItem(withTitle: "Descending",
+                         action: Selector(("sourcepadSortLinesDesc:")), keyEquivalent: "")
+        sortMenu.addItem(withTitle: "Unique (Ascending)",
+                         action: Selector(("sourcepadSortLinesUnique:")), keyEquivalent: "")
+        sortMenu.addItem(withTitle: "Reverse",
+                         action: Selector(("sourcepadReverseLines:")), keyEquivalent: "")
+        editMenu.addItem(sort)
+
+        // Case submenu
+        let caseItem = NSMenuItem(title: "Convert Case", action: nil, keyEquivalent: "")
+        let caseMenu = NSMenu(title: "Convert Case")
+        caseItem.submenu = caseMenu
+        caseMenu.addItem(withTitle: "UPPER CASE",
+                         action: Selector(("sourcepadConvertCaseUpper:")), keyEquivalent: "")
+        caseMenu.addItem(withTitle: "lower case",
+                         action: Selector(("sourcepadConvertCaseLower:")), keyEquivalent: "")
+        caseMenu.addItem(withTitle: "Title Case",
+                         action: Selector(("sourcepadConvertCaseTitle:")), keyEquivalent: "")
+        caseMenu.addItem(withTitle: "camelCase",
+                         action: Selector(("sourcepadConvertCaseCamel:")), keyEquivalent: "")
+        caseMenu.addItem(withTitle: "snake_case",
+                         action: Selector(("sourcepadConvertCaseSnake:")), keyEquivalent: "")
+        caseMenu.addItem(withTitle: "kebab-case",
+                         action: Selector(("sourcepadConvertCaseKebab:")), keyEquivalent: "")
+        editMenu.addItem(caseItem)
+
+        // Bookmark submenu
+        let bookmark = NSMenuItem(title: "Bookmark", action: nil, keyEquivalent: "")
+        let bookmarkMenu = NSMenu(title: "Bookmark")
+        bookmark.submenu = bookmarkMenu
+        let bookmarkToggle = NSMenuItem(title: "Toggle on Current Line",
+                                        action: Selector(("sourcepadToggleBookmark:")),
+                                        keyEquivalent: "\u{F705}")  // F2
+        bookmarkToggle.keyEquivalentModifierMask = []
+        bookmarkMenu.addItem(bookmarkToggle)
+        let bmNext = NSMenuItem(title: "Next Bookmark",
+                                action: Selector(("sourcepadJumpNextBookmark:")),
+                                keyEquivalent: "\u{F705}")
+        bmNext.keyEquivalentModifierMask = [.command]
+        bookmarkMenu.addItem(bmNext)
+        let bmPrev = NSMenuItem(title: "Previous Bookmark",
+                                action: Selector(("sourcepadJumpPreviousBookmark:")),
+                                keyEquivalent: "\u{F705}")
+        bmPrev.keyEquivalentModifierMask = [.command, .shift]
+        bookmarkMenu.addItem(bmPrev)
+        bookmarkMenu.addItem(withTitle: "Clear All Bookmarks",
+                             action: Selector(("sourcepadClearBookmarks:")),
+                             keyEquivalent: "")
+        editMenu.addItem(bookmark)
+
         // Cmd-F / Cmd-E both focus the toolbar search field.
         findMenu.addItem(withTitle: "Find…",
                          action: Selector(("sourcepadFocusToolbarSearch:")),

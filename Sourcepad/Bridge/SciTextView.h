@@ -211,6 +211,23 @@ BOOL SciAddNextOccurrenceToSelection(NSView *view);
 NSInteger SciSelectionCount(NSView *view);
 void SciClearAdditionalSelections(NSView *view);
 
+// MARK: - Markers (bookmarks, etc.)
+
+void SciDefineBookmarkMarker(NSView *view, int markerNumber, NSColor *fg, NSColor *bg);
+void SciMarkerAdd(NSView *view, NSInteger line, int markerNumber);
+void SciMarkerRemove(NSView *view, NSInteger line, int markerNumber);
+BOOL SciMarkerExistsOnLine(NSView *view, NSInteger line, int markerNumber);
+NSInteger SciMarkerNext(NSView *view, NSInteger fromLine, int markerNumber);
+NSInteger SciMarkerPrevious(NSView *view, NSInteger fromLine, int markerNumber);
+void SciMarkerDeleteAll(NSView *view, int markerNumber);
+
+// MARK: - Per-line read/write helpers
+
+NSString *SciGetLineText(NSView *view, NSInteger line0Based);
+NSInteger SciLineStartByte(NSView *view, NSInteger line0Based);
+NSInteger SciLineEndByte(NSView *view, NSInteger line0Based);   // before EOL
+NSInteger SciLineFromByte(NSView *view, NSInteger byte);
+
 #ifdef __cplusplus
 }
 #endif

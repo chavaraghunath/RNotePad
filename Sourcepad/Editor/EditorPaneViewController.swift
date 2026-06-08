@@ -71,6 +71,10 @@ public final class EditorPaneViewController: NSViewController {
         installNotificationHandler()
         bar.editorView = editor
         SciSetMultipleSelectionEnabled(editor, true)
+        // Bookmark marker setup — scheme palette is light by default, refined
+        // in applyColorScheme() once the doc loads.
+        let mode = ThemeMode.from(root.effectiveAppearance)
+        Bookmarks.shared.setupMarker(in: editor, scheme: SchemeLibrary.scheme(for: nil, mode: mode))
         applyPreferences()  // sets font, tab width, line-number visibility
 
         NotificationCenter.default.addObserver(
@@ -129,6 +133,9 @@ public final class EditorPaneViewController: NSViewController {
             let clamped = max(0, min(savedCaret, SciTextLengthBytes(sciView)))
             SciSetSelectionBytes(sciView, clamped, clamped)
         }
+
+        // Restore persisted bookmarks for this file.
+        Bookmarks.shared.restore(for: doc.fileURL, in: sciView)
     }
 
     public func currentCaretByte() -> Int {
@@ -377,6 +384,248 @@ public final class EditorPaneViewController: NSViewController {
         return AutoPair.handle(typedChar: character,
                                in: sciView,
                                currentText: { SciGetText(self.sciView) })
+    }
+
+    // MARK: - Phase 4 actions (comment toggle, sort, case, bookmarks)
+
+    @objc public func sourcepadToggleLineComment(_ sender: Any?) {
+        let syntax = CommentSyntax.forLexer(currentLexer)
+        if let prefix = syntax.linePrefix {
+            toggleLineCommentLines(prefix: prefix)
+        } else if let bo = syntax.blockOpen, let bc = syntax.blockClose {
+            toggleBlockComment(open: bo, close: bc)
+        } else {
+            NSSound.beep()
+        }
+    }
+
+    @objc public func sourcepadSortLinesAsc(_ sender: Any?)   { sortSelectedLines(ascending: true, unique: false, reverse: false) }
+    @objc public func sourcepadSortLinesDesc(_ sender: Any?)  { sortSelectedLines(ascending: false, unique: false, reverse: false) }
+    @objc public func sourcepadSortLinesUnique(_ sender: Any?) { sortSelectedLines(ascending: true, unique: true, reverse: false) }
+    @objc public func sourcepadReverseLines(_ sender: Any?)   { sortSelectedLines(ascending: true, unique: false, reverse: true) }
+
+    @objc public func sourcepadConvertCaseUpper(_ sender: Any?) { transformSelection { $0.uppercased() } }
+    @objc public func sourcepadConvertCaseLower(_ sender: Any?) { transformSelection { $0.lowercased() } }
+    @objc public func sourcepadConvertCaseTitle(_ sender: Any?) { transformSelection { $0.capitalized } }
+    @objc public func sourcepadConvertCaseCamel(_ sender: Any?) { transformSelection { CaseConvert.camel($0) } }
+    @objc public func sourcepadConvertCaseSnake(_ sender: Any?) { transformSelection { CaseConvert.snake($0) } }
+    @objc public func sourcepadConvertCaseKebab(_ sender: Any?) { transformSelection { CaseConvert.kebab($0) } }
+
+    @objc public func sourcepadToggleBookmark(_ sender: Any?) {
+        let line = SciGetCurrentLine(sciView)
+        Bookmarks.shared.toggle(line: line, in: sciView, url: document?.fileURL)
+    }
+
+    @objc public func sourcepadJumpNextBookmark(_ sender: Any?) {
+        let current = SciGetCurrentLine(sciView)
+        let next = SciMarkerNext(sciView, current + 1, BookmarkConstants.markerNumber)
+        if next < 0 {
+            let wrap = SciMarkerNext(sciView, 0, BookmarkConstants.markerNumber)
+            if wrap < 0 { NSSound.beep(); return }
+            SciGoToLine(sciView, wrap + 1)
+        } else {
+            SciGoToLine(sciView, next + 1)
+        }
+    }
+
+    @objc public func sourcepadJumpPreviousBookmark(_ sender: Any?) {
+        let current = SciGetCurrentLine(sciView)
+        let prev = SciMarkerPrevious(sciView, max(0, current - 1), BookmarkConstants.markerNumber)
+        if prev < 0 {
+            let last = SciMarkerPrevious(sciView, SciGetLineCount(sciView) - 1, BookmarkConstants.markerNumber)
+            if last < 0 { NSSound.beep(); return }
+            SciGoToLine(sciView, last + 1)
+        } else {
+            SciGoToLine(sciView, prev + 1)
+        }
+    }
+
+    @objc public func sourcepadClearBookmarks(_ sender: Any?) {
+        Bookmarks.shared.clearAll(in: sciView, url: document?.fileURL)
+    }
+
+    // MARK: - Line-level edit helpers
+
+    private func selectedLineRange() -> (firstLine: Int, lastLine: Int) {
+        let sel = SciGetSelectionBytes(sciView)
+        let startByte = Int(sel.location)
+        let endByte   = startByte + Int(sel.length)
+        let startLine = SciLineFromByte(sciView, startByte)
+        var endLine   = SciLineFromByte(sciView, max(startByte, endByte))
+        // If selection ends exactly at line start (zero-length on next line), trim back.
+        if sel.length > 0 && SciLineStartByte(sciView, endLine) == endByte && endLine > startLine {
+            endLine -= 1
+        }
+        return (startLine, endLine)
+    }
+
+    private func toggleLineCommentLines(prefix: String) {
+        let (first, last) = selectedLineRange()
+        // Are ALL non-blank lines already commented?
+        var allCommented = true
+        var anyNonBlank = false
+        for line in first...last {
+            let text = SciGetLineText(sciView, line)
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            anyNonBlank = true
+            if !trimmed.hasPrefix(prefix) { allCommented = false; break }
+        }
+        guard anyNonBlank else { NSSound.beep(); return }
+
+        SciBeginUndoAction(sciView)
+        for line in first...last {
+            let lineText = SciGetLineText(sciView, line)
+            let trimmed = lineText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            let lineStart = SciLineStartByte(sciView, line)
+            let lineEnd   = SciLineEndByte(sciView, line)
+            if allCommented {
+                // Remove the first occurrence of `prefix` (preserving following space if present).
+                if let r = lineText.range(of: prefix) {
+                    var stripCount = (prefix as NSString).lengthOfBytes(using: String.Encoding.utf8.rawValue)
+                    let after = lineText.index(r.lowerBound, offsetBy: prefix.count, limitedBy: lineText.endIndex)
+                    if let after, after < lineText.endIndex, lineText[after] == " " {
+                        stripCount += 1
+                    }
+                    let leadingBytes = lineText[..<r.lowerBound].utf8.count
+                    let pos = lineStart + leadingBytes
+                    _ = SciReplaceBytesRange(sciView, pos, pos + stripCount, "")
+                }
+            } else {
+                // Find first non-whitespace position and insert "prefix " there.
+                if let nonWS = lineText.firstIndex(where: { !$0.isWhitespace }) {
+                    let leadingBytes = lineText[..<nonWS].utf8.count
+                    let insertAt = lineStart + leadingBytes
+                    _ = SciReplaceBytesRange(sciView, insertAt, insertAt, prefix + " ")
+                } else {
+                    // Pure whitespace line — insert prefix at line start.
+                    _ = SciReplaceBytesRange(sciView, lineStart, lineStart, prefix + " ")
+                }
+                _ = lineEnd  // unused
+            }
+        }
+        SciEndUndoAction(sciView)
+    }
+
+    private func toggleBlockComment(open: String, close: String) {
+        let sel = SciGetSelectionBytes(sciView)
+        guard sel.length > 0 else { NSSound.beep(); return }
+        let start = Int(sel.location)
+        let end   = start + Int(sel.length)
+        let inner = sliceBuffer(start: start, end: end)
+        SciBeginUndoAction(sciView)
+        if inner.hasPrefix(open) && inner.hasSuffix(close) {
+            let stripped = String(inner.dropFirst(open.count).dropLast(close.count))
+            _ = SciReplaceBytesRange(sciView, start, end, stripped)
+        } else {
+            _ = SciReplaceBytesRange(sciView, start, end, open + inner + close)
+        }
+        SciEndUndoAction(sciView)
+    }
+
+    private func sortSelectedLines(ascending: Bool, unique: Bool, reverse: Bool) {
+        let (first, last) = selectedLineRange()
+        guard last > first else { return }
+        let startByte = SciLineStartByte(sciView, first)
+        let endByte   = SciLineEndByte(sciView, last)
+        let block = sliceBuffer(start: startByte, end: endByte)
+        var lines = block.components(separatedBy: "\n")
+        if reverse {
+            lines.reverse()
+        } else {
+            lines.sort { ascending ? $0 < $1 : $0 > $1 }
+        }
+        if unique {
+            var seen = Set<String>()
+            lines = lines.filter { seen.insert($0).inserted }
+        }
+        let joined = lines.joined(separator: "\n")
+        SciBeginUndoAction(sciView)
+        _ = SciReplaceBytesRange(sciView, startByte, endByte, joined)
+        SciEndUndoAction(sciView)
+    }
+
+    private func transformSelection(_ transform: (String) -> String) {
+        let sel = SciGetSelectionBytes(sciView)
+        let start: Int
+        let end: Int
+        if sel.length > 0 {
+            start = Int(sel.location)
+            end   = start + Int(sel.length)
+        } else {
+            // No selection — operate on the word under the caret.
+            let caret = Int(sel.location)
+            let full = SciGetText(sciView)
+            let utf8 = Array(full.utf8)
+            var wStart = caret
+            while wStart > 0, let ch = scalarAt(utf8, wStart - 1), ch.isWordChar { wStart -= 1 }
+            var wEnd = caret
+            while wEnd < utf8.count, let ch = scalarAt(utf8, wEnd), ch.isWordChar { wEnd += 1 }
+            if wStart == wEnd { NSSound.beep(); return }
+            start = wStart; end = wEnd
+        }
+        let inner = sliceBuffer(start: start, end: end)
+        let out = transform(inner)
+        SciBeginUndoAction(sciView)
+        let newEnd = SciReplaceBytesRange(sciView, start, end, out)
+        SciSetSelectionBytes(sciView, start, newEnd)
+        SciEndUndoAction(sciView)
+    }
+
+    private func sliceBuffer(start: Int, end: Int) -> String {
+        let utf8 = Array(SciGetText(sciView).utf8)
+        guard start <= end, end <= utf8.count else { return "" }
+        return String(decoding: utf8[start..<end], as: UTF8.self)
+    }
+
+    private func scalarAt(_ utf8: [UInt8], _ idx: Int) -> Unicode.Scalar? {
+        guard idx >= 0, idx < utf8.count else { return nil }
+        return Unicode.Scalar(utf8[idx])
+    }
+}
+
+private extension Unicode.Scalar {
+    var isWordChar: Bool {
+        // ASCII word definition — Phase 4 keeps it simple; non-ASCII identifiers
+        // still work fine when used inside a selection.
+        if value >= 0x30 && value <= 0x39 { return true }      // 0-9
+        if value >= 0x41 && value <= 0x5A { return true }      // A-Z
+        if value >= 0x61 && value <= 0x7A { return true }      // a-z
+        if value == 0x5F { return true }                       // _
+        return false
+    }
+}
+
+public enum CaseConvert {
+    /// Splits on non-word characters, lowercases first piece, capitalizes rest.
+    public static func camel(_ s: String) -> String {
+        let pieces = split(s)
+        guard let first = pieces.first else { return "" }
+        return first.lowercased() + pieces.dropFirst().map { $0.capitalized }.joined()
+    }
+    public static func snake(_ s: String) -> String { split(s).map { $0.lowercased() }.joined(separator: "_") }
+    public static func kebab(_ s: String) -> String { split(s).map { $0.lowercased() }.joined(separator: "-") }
+
+    private static func split(_ s: String) -> [String] {
+        // Split on non-letters/digits AND on lowercase→uppercase transitions
+        // (so "fooBar" → ["foo", "Bar"]).
+        var pieces: [String] = []
+        var current = ""
+        var prev: Character = " "
+        for c in s {
+            let isWord = c.isLetter || c.isNumber
+            let upperTransition = c.isUppercase && prev.isLowercase
+            if !isWord || upperTransition {
+                if !current.isEmpty { pieces.append(current); current = "" }
+                if isWord { current.append(c) }
+            } else {
+                current.append(c)
+            }
+            prev = c
+        }
+        if !current.isEmpty { pieces.append(current) }
+        return pieces
     }
 }
 
