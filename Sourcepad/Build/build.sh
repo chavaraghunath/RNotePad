@@ -165,6 +165,10 @@ SWIFT_SRCS=(
     "$APP_DIR/Notes/TagIndex.swift"
     "$APP_DIR/Notes/Backlinks.swift"
     "$APP_DIR/Notes/ReadingMode.swift"
+    "$APP_DIR/NativeMac/LiveTextOCR.swift"
+    "$APP_DIR/NativeMac/SpeakSelection.swift"
+    "$APP_DIR/NativeMac/ContinuityCamera.swift"
+    "$APP_DIR/MenuBar/QuickCaptureController.swift"
 )
 
 swiftc "${SWIFT_SRCS[@]}" \

@@ -298,6 +298,16 @@ public enum MainMenu {
         notesMenu.addItem(withTitle: "Toggle Reading Mode",
                           action: Selector(("sourcepadToggleReadingMode:")),
                           keyEquivalent: "r").keyEquivalentModifierMask = [.command, .shift]
+        notesMenu.addItem(.separator())
+        notesMenu.addItem(withTitle: "OCR Text from Image…",
+                          action: #selector(NativeMacMenuTarget.runOCR(_:)),
+                          keyEquivalent: "").target = NativeMacMenuTarget.shared
+        notesMenu.addItem(withTitle: "Insert Image…",
+                          action: #selector(NativeMacMenuTarget.insertImage(_:)),
+                          keyEquivalent: "").target = NativeMacMenuTarget.shared
+        notesMenu.addItem(withTitle: "Speak Selection",
+                          action: #selector(NativeMacMenuTarget.speakSelection(_:)),
+                          keyEquivalent: "").target = NativeMacMenuTarget.shared
 
         // MARK: AI menu (Phase 10–13)
         let aiItem = NSMenuItem()
@@ -834,5 +844,23 @@ enum WorkspaceMenu {
         if Preferences.shared.aiEnabled {
             MLXService.shared.start()
         }
+    }
+}
+
+// MARK: - Native Mac menu target (Phase 24)
+
+@objc final class NativeMacMenuTarget: NSObject {
+    @objc static let shared = NativeMacMenuTarget()
+
+    @objc func runOCR(_ sender: Any?) {
+        LiveTextOCR.runForActiveEditor()
+    }
+
+    @objc func insertImage(_ sender: Any?) {
+        ContinuityCamera.insertImageReference()
+    }
+
+    @objc func speakSelection(_ sender: Any?) {
+        SpeakSelection.speakActiveSelection()
     }
 }

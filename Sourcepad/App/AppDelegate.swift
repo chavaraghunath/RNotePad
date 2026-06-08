@@ -15,6 +15,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = WorkspaceManager.shared.activeWorkspace
         WorkspaceIndexHost.shared.start()
 
+        // Phase 25: menu-bar quick capture.
+        QuickCaptureController.shared.install()
+
         NSApp.mainMenu = MainMenu.build()
         NSApp.activate(ignoringOtherApps: true)
 
