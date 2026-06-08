@@ -329,3 +329,20 @@ NSString *SciDumpStyles(NSView *view, NSInteger maxBytes) {
     }
     return out;
 }
+
+// MARK: - Manual styling
+
+void SciSetCustomStyleUTF16(NSView *view, NSInteger utf16Start, NSInteger utf16Length, int style) {
+    if (utf16Length <= 0) return;
+    ScintillaView *v = (ScintillaView *)view;
+    NSString *text = [v string];
+    if (utf16Start < 0 || utf16Start + utf16Length > (NSInteger)text.length) return;
+
+    NSString *prefix    = (utf16Start > 0) ? [text substringWithRange:NSMakeRange(0, utf16Start)] : @"";
+    NSString *substring = [text substringWithRange:NSMakeRange(utf16Start, utf16Length)];
+    NSUInteger byteStart  = [prefix lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    NSUInteger byteLength = [substring lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+
+    [v message:SCI_STARTSTYLING wParam:(uptr_t)byteStart lParam:0];
+    [v message:SCI_SETSTYLING   wParam:(uptr_t)byteLength lParam:(sptr_t)style];
+}

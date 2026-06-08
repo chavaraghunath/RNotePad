@@ -228,6 +228,19 @@ private func htmlStyles(_ mode: ThemeMode) -> [Int: S] {
         65: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),
         66: S(fg: c ? Palette.lightString    : Palette.darkString),
         67: S(fg: c ? Palette.lightRegex     : Palette.darkRegex),
+        // Embedded CSS — applied by CSSStyler post-pass since Lexilla's
+        // hypertext lexer doesn't sub-lex CSS. Indices 70-79 are our custom
+        // allocation, safely above HJ/HJA (40-67) and below 100.
+        70: S(fg: c ? Palette.lightComment   : Palette.darkComment),    // /* comment */
+        71: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator),  // @directive
+        72: S(fg: c ? Palette.lightTag       : Palette.darkTag),        // tag selector
+        73: S(fg: c ? Palette.lightType      : Palette.darkType),       // .class
+        74: S(fg: c ? Palette.lightType      : Palette.darkType),       // #id
+        75: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),   // :pseudo
+        76: S(fg: c ? Palette.lightProperty  : Palette.darkProperty),   // property name
+        77: S(fg: c ? Palette.lightString    : Palette.darkString),     // value
+        78: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),   // { } ; , : ( )
+        79: S(fg: c ? Palette.lightString    : Palette.darkString),     // "string"
     ]
 }
 

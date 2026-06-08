@@ -82,6 +82,14 @@ void SciSetNotificationHandler(NSView *view, void (^_Nullable handler)(SciNotifi
 /// diagnosing what the lexer is actually emitting.
 NSString *SciDumpStyles(NSView *view, NSInteger maxBytes);
 
+// MARK: - Manual styling (for sub-lexing things Lexilla doesn't natively cover,
+//         e.g. CSS embedded in HTML <style> blocks).
+
+/// Apply a single Scintilla style to a UTF-16 character range of the buffer.
+/// Indices are NSString-style (UTF-16); we convert to byte positions internally
+/// so non-ASCII text works correctly. Safe to call repeatedly.
+void SciSetCustomStyleUTF16(NSView *view, NSInteger utf16Start, NSInteger utf16Length, int style);
+
 #ifdef __cplusplus
 }
 #endif

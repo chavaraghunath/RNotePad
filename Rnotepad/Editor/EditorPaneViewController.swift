@@ -89,7 +89,14 @@ public final class EditorPaneViewController: NSViewController {
             scheme.lineNumberFg,
             scheme.lineNumberBg
         )
-        if let lex = currentLexer { _ = SciApplyLexer(sciView, lex) }
+        if let lex = currentLexer {
+            _ = SciApplyLexer(sciView, lex)
+            // Lexilla's hypertext lexer doesn't sub-lex CSS — post-process to
+            // color content inside <style> blocks.
+            if lex == "hypertext" || lex == "xml" {
+                CSSStyler.applyToHTML(view: sciView, text: SciGetText(sciView))
+            }
+        }
     }
 
     // MARK: - Scintilla notifications
