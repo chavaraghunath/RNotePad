@@ -28,6 +28,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         return false  // Handled explicitly in applicationDidFinishLaunching above.
     }
 
+    // Handle files dropped on the Dock icon or launched via `open foo.txt`.
+    public func application(_ application: NSApplication, open urls: [URL]) {
+        let dc = NSDocumentController.shared
+        for url in urls {
+            dc.openDocument(withContentsOf: url, display: true) { _, _, error in
+                if let error { NSLog("[RNotePad] open failed: \(url.path) — \(error)") }
+            }
+        }
+    }
+
     public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false  // Standard macOS behavior — quit explicitly via Cmd-Q.
     }
