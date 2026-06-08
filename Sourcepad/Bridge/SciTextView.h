@@ -36,6 +36,16 @@ NSString *SciGetText(NSView *view);
 /// Set the editor font (e.g. "Menlo", 13).
 void SciSetFont(NSView *view, NSString *name, CGFloat size);
 
+/// Set the default editor font + size. Pair this with SciApplyPalette
+/// (which propagates STYLE_DEFAULT to all token styles via STYLECLEARALL).
+void SciSetEditorFont(NSView *view, NSString *fontName, CGFloat fontSize);
+
+/// Set tab width in columns (default 8 in Scintilla; we prefer 4).
+void SciSetTabWidth(NSView *view, NSInteger width);
+
+/// When YES, Tab key inserts a hard tab; when NO, it inserts spaces.
+void SciSetUseTabs(NSView *view, BOOL useTabs);
+
 // MARK: - Lexer / styling
 
 /// Load Lexilla, create a lexer by name (e.g. "cpp", "python"), and attach it.

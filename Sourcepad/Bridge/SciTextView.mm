@@ -211,8 +211,7 @@ void SciApplyPalette(NSView *view,
     ScintillaView *v = (ScintillaView *)view;
 
     // STYLE_DEFAULT first; then STYLECLEARALL propagates it to all other slots.
-    [v setStringProperty:SCI_STYLESETFONT parameter:STYLE_DEFAULT value:@"Menlo"];
-    [v setGeneralProperty:SCI_STYLESETSIZE parameter:STYLE_DEFAULT value:13];
+    // Caller is expected to have set the editor font via SciSetEditorFont().
     [v setColorProperty:SCI_STYLESETFORE parameter:STYLE_DEFAULT value:defaultFg];
     [v setColorProperty:SCI_STYLESETBACK parameter:STYLE_DEFAULT value:defaultBg];
     [v setGeneralProperty:SCI_STYLECLEARALL parameter:0 value:0];
@@ -237,6 +236,22 @@ void SciApplyPalette(NSView *view,
 
     // Caret + selection that match the theme.
     [v setColorProperty:SCI_SETCARETFORE parameter:0 value:defaultFg];
+}
+
+void SciSetEditorFont(NSView *view, NSString *fontName, CGFloat fontSize) {
+    ScintillaView *v = (ScintillaView *)view;
+    NSString *resolved = (fontName.length > 0) ? fontName : @"Menlo";
+    int size = (int)(fontSize > 0 ? fontSize : 13);
+    [v setStringProperty:SCI_STYLESETFONT parameter:STYLE_DEFAULT value:resolved];
+    [v setGeneralProperty:SCI_STYLESETSIZE parameter:STYLE_DEFAULT value:size];
+}
+
+void SciSetTabWidth(NSView *view, NSInteger width) {
+    [(ScintillaView *)view message:SCI_SETTABWIDTH wParam:(uptr_t)MAX(1, width) lParam:0];
+}
+
+void SciSetUseTabs(NSView *view, BOOL useTabs) {
+    [(ScintillaView *)view message:SCI_SETUSETABS wParam:(uptr_t)(useTabs ? 1 : 0) lParam:0];
 }
 
 void SciShowLineNumbers(NSView *view, BOOL show) {

@@ -64,11 +64,35 @@ public final class EditorPaneViewController: NSViewController {
         dropOverlay.autoresizingMask = [.width, .height]
         container.addSubview(dropOverlay)
 
-        SciShowLineNumbers(editor, true)
         installNotificationHandler()
         bar.editorView = editor
+        applyPreferences()  // sets font, tab width, line-number visibility
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(preferencesChanged(_:)),
+            name: .sourcepadPreferencesChanged,
+            object: nil
+        )
 
         self.view = root
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func preferencesChanged(_ note: Notification) {
+        applyPreferences()
+        applyColorScheme()
+    }
+
+    private func applyPreferences() {
+        let p = Preferences.shared
+        SciSetEditorFont(sciView, p.fontName, p.fontSize)
+        SciSetTabWidth(sciView, p.tabWidth)
+        SciSetUseTabs(sciView, !p.useSpacesForTabs)
+        SciShowLineNumbers(sciView, p.showLineNumbers)
     }
 
     public override func viewDidAppear() {
@@ -149,6 +173,10 @@ public final class EditorPaneViewController: NSViewController {
     private func applyColorScheme() {
         let mode = ThemeMode.from(view.effectiveAppearance)
         let scheme = SchemeLibrary.scheme(for: currentLexer, mode: mode)
+        // Font/size must be set BEFORE SciApplyPalette — STYLECLEARALL propagates
+        // STYLE_DEFAULT to every style slot, including font.
+        let p = Preferences.shared
+        SciSetEditorFont(sciView, p.fontName, p.fontSize)
         SciApplyPalette(
             sciView,
             scheme.bridgePalette(),

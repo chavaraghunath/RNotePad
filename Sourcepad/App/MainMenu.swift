@@ -18,6 +18,12 @@ public enum MainMenu {
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
+        let prefs = NSMenuItem(title: "Preferences…",
+                               action: #selector(PreferencesWindowController.showFromMenu(_:)),
+                               keyEquivalent: ",")
+        prefs.target = PreferencesWindowController.shared
+        appMenu.addItem(prefs)
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide Sourcepad",
                         action: #selector(NSApplication.hide(_:)),
                         keyEquivalent: "h")
