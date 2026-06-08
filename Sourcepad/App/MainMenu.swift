@@ -146,6 +146,13 @@ public enum MainMenu {
                          action: Selector(("sourcepadAddNextOccurrence:")),
                          keyEquivalent: "d")
 
+        // LSP hover (Phase 6). F1 by editor convention; modifier mask = [].
+        let hoverItem = NSMenuItem(title: "Show Hover Info",
+                                   action: Selector(("sourcepadShowHover:")),
+                                   keyEquivalent: String(UnicodeScalar(UInt32(NSF1FunctionKey))!))
+        hoverItem.keyEquivalentModifierMask = []
+        editMenu.addItem(hoverItem)
+
         // Smart selection (Phase 5 — Tree-sitter).
         // ⌃⇧→ / ⌃⇧← — expand / shrink to the enclosing syntax node.
         let rightArrow = String(UnicodeScalar(UInt32(NSRightArrowFunctionKey))!)

@@ -154,6 +154,51 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
 
         // Spin up Tree-sitter for languages we have a grammar for.
         setupTreeSitter(for: lexerName, source: doc.contents)
+
+        // Spin up the LSP session (no-op if no server is configured for
+        // this language). Posts didOpen with the initial buffer.
+        setupLSP(for: lexerName, source: doc.contents)
+    }
+
+    // MARK: - LSP wiring (Phase 6)
+
+    private var lspSession: LSPDocumentSession?
+
+    private func setupLSP(for lexer: String?, source: String) {
+        // Close any prior session.
+        lspSession?.close()
+        lspSession = nil
+        guard let lex = lexer,
+              let doc = document,
+              let url = doc.fileURL else { return }
+        let workspaceRoot = WorkspaceManager.shared.activeWorkspace.roots.first
+            ?? url.deletingLastPathComponent()
+        guard let session = LSPDocumentSession(documentURL: url,
+                                               lexerName: lex,
+                                               workspaceRoot: workspaceRoot,
+                                               sciView: sciView) else { return }
+        session.start(initialText: source)
+        lspSession = session
+    }
+
+    private func lspSyncChange() {
+        guard let session = lspSession else { return }
+        session.didChange(text: SciGetText(sciView))
+    }
+
+    @objc public func sourcepadShowHover(_ sender: Any?) {
+        guard let session = lspSession else { NSSound.beep(); return }
+        let caret = currentCaretByte()
+        session.requestHover(atCaretByte: caret) { [weak self] hover in
+            guard let self else { return }
+            if let hover = hover {
+                LSPHoverPopover.shared.show(markdown: hover.markdown,
+                                            anchoredTo: self.sciView,
+                                            atCaretByte: caret)
+            } else {
+                NSSound.beep()
+            }
+        }
     }
 
     // MARK: - Tree-sitter wiring (Phase 5)
@@ -415,6 +460,7 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
                 self.onTextChanged?()
                 self.scheduleGitGutterRefresh()
                 self.treeSitterReparseFullBuffer()
+                self.lspSyncChange()
             case .updateUI:
                 SciUpdateBraceMatch(self.sciView)
                 if Preferences.shared.autocompleteEnabled {

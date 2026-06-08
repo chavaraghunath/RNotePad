@@ -137,6 +137,14 @@ SWIFT_SRCS=(
     "$APP_DIR/Languages/TreeSitter/TreeSitter.swift"
     "$APP_DIR/Languages/TreeSitter/TreeSitterManager.swift"
     "$APP_DIR/Languages/TreeSitter/SmartSelection.swift"
+    "$APP_DIR/LSP/LSPClient.swift"
+    "$APP_DIR/LSP/LSPProtocol.swift"
+    "$APP_DIR/LSP/LSPServerRegistry.swift"
+    "$APP_DIR/LSP/LSPServerManager.swift"
+    "$APP_DIR/LSP/LSPDocumentSync.swift"
+    "$APP_DIR/LSP/LSPDiagnostics.swift"
+    "$APP_DIR/LSP/LSPHoverPopover.swift"
+    "$APP_DIR/LSP/LSPDocumentSession.swift"
 )
 
 swiftc "${SWIFT_SRCS[@]}" \

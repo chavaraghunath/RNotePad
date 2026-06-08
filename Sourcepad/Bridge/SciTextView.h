@@ -4,6 +4,7 @@
 
 #import <Cocoa/Cocoa.h>
 #import "KeywordSetsGenerated.h"
+#import "Allocations.h"
 
 // Tree-sitter — surfaced to Swift via the bridging header.
 // Repo-relative paths so the importer doesn't need -Xcc -I flags (which
