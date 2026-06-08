@@ -126,6 +126,7 @@ SWIFT_SRCS=(
     "$APP_DIR/Views/JSONTreeContent.swift"
     "$APP_DIR/Views/HexViewContent.swift"
     "$APP_DIR/Views/SQLiteBrowserContent.swift"
+    "$APP_DIR/Views/PDFPreviewContent.swift"
     "$APP_DIR/Editor/EditorPaneViewController.swift"
     "$APP_DIR/Editor/PreviewPaneViewController.swift"
     "$APP_DIR/Editor/SidebarTabBar.swift"

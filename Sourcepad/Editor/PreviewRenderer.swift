@@ -50,6 +50,15 @@ public enum PreviewRenderer {
         return false
     }
 
+    /// Filenames that should be opened in a binary-safe viewer (PDF, image)
+    /// rather than the Scintilla text path. TextDocument skips text decode
+    /// for these; EditorContentFactory routes .pdf to PDFPreviewContent.
+    public static func isBinaryFormat(filename: String) -> Bool {
+        if isBinaryImage(filename: filename) { return true }
+        let name = filename.lowercased()
+        return name.hasSuffix(".pdf")
+    }
+
     /// Render `source` into `webView`. For HTML, the source loads as-is. For
     /// Markdown, we wrap it in a template that runs a tiny inline parser. For
     /// CSS, the user's CSS is injected into a showcase HTML document that

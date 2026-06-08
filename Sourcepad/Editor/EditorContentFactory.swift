@@ -34,9 +34,16 @@ public enum EditorContentFactory {
                 return content
             }
         }
-        // Default: the Scintilla path. EditorPaneViewController already
-        // accepts a document at init and pulls bytes via
-        // documentContentsDidLoad().
+        // Filetype defaults: .pdf → PDFPreviewContent. Images route to
+        // the Scintilla path with the document's binary flag set, which
+        // EditorViewController.viewDidLoad notices and auto-opens the
+        // side preview pane.
+        if let url = document.fileURL {
+            let lower = url.pathExtension.lowercased()
+            if lower == "pdf" {
+                return PDFPreviewContent(fileURL: url)
+            }
+        }
         return EditorPaneViewController(document: document)
     }
 
@@ -63,7 +70,7 @@ public enum EditorContentFactory {
         case .font:
             return PlaceholderContent(kind: .font, initialText: initialText)
         case .pdf:
-            return PlaceholderContent(kind: .pdf, initialText: initialText)
+            return PDFPreviewContent(fileURL: url)
         }
     }
 }

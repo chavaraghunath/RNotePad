@@ -126,9 +126,11 @@ public final class TextDocument: NSDocument {
 
     public override func read(from data: Data, ofType typeName: String) throws {
         let filename = fileURL?.lastPathComponent ?? ""
-        if PreviewRenderer.isBinaryImage(filename: filename) {
+        // PDFs + raster images both skip text decode. Routing to the right
+        // viewer happens in EditorContentFactory.
+        if PreviewRenderer.isBinaryFormat(filename: filename) {
             self.isBinaryImage = true
-            self.contents = ""  // editor stays empty; preview shows the image
+            self.contents = ""
             self.encoding = .utf8
             self.hasUTF8BOM = false
             self.shebangLexer = nil
