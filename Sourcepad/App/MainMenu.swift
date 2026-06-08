@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — programmatic main menu (no .xib).
+// Sourcepad — programmatic main menu (no .xib).
 
 import AppKit
 
@@ -8,17 +8,17 @@ public enum MainMenu {
     public static func build() -> NSMenu {
         let menubar = NSMenu()
 
-        // MARK: Rnotepad menu
+        // MARK: Sourcepad menu
         let appItem = NSMenuItem()
         menubar.addItem(appItem)
         let appMenu = NSMenu()
         appItem.submenu = appMenu
 
-        appMenu.addItem(withTitle: "About Rnotepad",
+        appMenu.addItem(withTitle: "About Sourcepad",
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide Rnotepad",
+        appMenu.addItem(withTitle: "Hide Sourcepad",
                         action: #selector(NSApplication.hide(_:)),
                         keyEquivalent: "h")
         let hideOthers = NSMenuItem(title: "Hide Others",
@@ -30,7 +30,7 @@ public enum MainMenu {
                         action: #selector(NSApplication.unhideAllApplications(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit Rnotepad",
+        appMenu.addItem(withTitle: "Quit Sourcepad",
                         action: #selector(NSApplication.terminate(_:)),
                         keyEquivalent: "q")
 
@@ -133,7 +133,7 @@ public enum MainMenu {
         viewMenu.addItem(previewItem)
 
         viewMenu.addItem(.separator())
-        let inspectItem = NSMenuItem(title: "Inspect Lexer Styles → /tmp/rnotepad.log",
+        let inspectItem = NSMenuItem(title: "Inspect Lexer Styles → /tmp/sourcepad.log",
                                      action: #selector(InspectMenuTarget.inspect(_:)),
                                      keyEquivalent: "")
         inspectItem.target = InspectMenuTarget.shared
@@ -291,7 +291,7 @@ enum LanguageMenu {
         DebugLog.log("---- lexer style dump for \(editor.activeLexer ?? "plain") ----\n\(dump)\n---- end dump ----")
         let alert = NSAlert()
         alert.messageText = "Wrote lexer style dump"
-        alert.informativeText = "Dump saved to /tmp/rnotepad.log. Open Terminal and run:\n\n  tail -200 /tmp/rnotepad.log"
+        alert.informativeText = "Dump saved to /tmp/sourcepad.log. Open Terminal and run:\n\n  tail -200 /tmp/sourcepad.log"
         alert.runModal()
     }
 

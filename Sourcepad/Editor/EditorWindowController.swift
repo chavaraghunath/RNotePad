@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — one window per text document. Hosts the editor split view and
+// Sourcepad — one window per text document. Hosts the editor split view and
 // a toolbar with a preview-toggle button on the trailing side.
 
 import AppKit
@@ -15,9 +15,9 @@ public final class EditorWindowController: NSWindowController, NSWindowDelegate,
         let window = NSWindow(contentViewController: vc)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 1080, height: 700))
-        window.title = "Rnotepad"
+        window.title = "Sourcepad"
         window.tabbingMode = .preferred
-        window.setFrameAutosaveName("RnotepadMainWindow")
+        window.setFrameAutosaveName("SourcepadMainWindow")
         window.center()
 
         super.init(window: window)
@@ -33,10 +33,10 @@ public final class EditorWindowController: NSWindowController, NSWindowDelegate,
 
     // MARK: - Toolbar
 
-    private static let previewItemId = NSToolbarItem.Identifier("RnotepadPreviewToggle")
+    private static let previewItemId = NSToolbarItem.Identifier("SourcepadPreviewToggle")
 
     private func installToolbar(on window: NSWindow) {
-        let toolbar = NSToolbar(identifier: "RnotepadMain")
+        let toolbar = NSToolbar(identifier: "SourcepadMain")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
@@ -92,7 +92,7 @@ public final class EditorWindowController: NSWindowController, NSWindowDelegate,
         let dc = NSDocumentController.shared
         for url in urls {
             dc.openDocument(withContentsOf: url, display: true) { _, _, error in
-                if let error { NSLog("[Rnotepad] window-drag-open failed: \(url.path) — \(error)") }
+                if let error { NSLog("[Sourcepad] window-drag-open failed: \(url.path) — \(error)") }
             }
         }
         return true

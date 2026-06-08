@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — entry point. NSApplication.shared + AppDelegate.
+// Sourcepad — entry point. NSApplication.shared + AppDelegate.
 
 import AppKit
 

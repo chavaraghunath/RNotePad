@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — application lifecycle.
+// Sourcepad — application lifecycle.
 
 import AppKit
 

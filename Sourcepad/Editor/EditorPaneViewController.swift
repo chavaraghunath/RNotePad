@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — left pane of the editor split. Hosts the Scintilla NSView, the
+// Sourcepad — left pane of the editor split. Hosts the Scintilla NSView, the
 // file-drop overlay, and the appearance-change forwarder.
 
 import AppKit

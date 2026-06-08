@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — NSSplitViewController hosting the editor pane and a
+// Sourcepad — NSSplitViewController hosting the editor pane and a
 // collapsible preview pane. NSSplitViewItem handles show/hide layout
 // correctly via `isCollapsed`.
 

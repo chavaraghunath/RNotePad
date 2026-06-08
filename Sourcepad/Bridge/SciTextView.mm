@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — Obj-C++ implementation. The only file that includes Scintilla's
+// Sourcepad — Obj-C++ implementation. The only file that includes Scintilla's
 // C++-leaky headers. Swift never sees these.
 
 #import "SciTextView.h"
@@ -57,12 +57,12 @@ static Lexilla::CreateLexerFn LoadCreateLexer() {
             if (dl) break;
         }
         if (!dl) {
-            NSLog(@"[Rnotepad] dlopen liblexilla failed: %s", dlerror());
+            NSLog(@"[Sourcepad] dlopen liblexilla failed: %s", dlerror());
             return;
         }
         fn = reinterpret_cast<Lexilla::CreateLexerFn>(dlsym(dl, LEXILLA_CREATELEXER));
         if (!fn) {
-            NSLog(@"[Rnotepad] dlsym CreateLexer failed: %s", dlerror());
+            NSLog(@"[Sourcepad] dlsym CreateLexer failed: %s", dlerror());
         }
     });
     return fn;
@@ -177,7 +177,7 @@ BOOL SciApplyLexer(NSView *view, NSString *lexerName) {
     if (!create) return NO;
     Scintilla::ILexer5 *lexer = create([lexerName UTF8String]);
     if (!lexer) {
-        NSLog(@"[Rnotepad] CreateLexer(\"%@\") returned null", lexerName);
+        NSLog(@"[Sourcepad] CreateLexer(\"%@\") returned null", lexerName);
         return NO;
     }
     [v setReferenceProperty:SCI_SETILEXER parameter:0 value:lexer];
@@ -185,7 +185,7 @@ BOOL SciApplyLexer(NSView *view, NSString *lexerName) {
     // Register keyword sets per lexer. Prefer the comprehensive generated
     // table (extracted from NPP's langs.model.xml — ~25k keywords across
     // 65 lexers); fall back to our hand-rolled shortlist if unavailable.
-    NSArray<NSString *> *sets = RNPKeywordSetsForLexer(lexerName);
+    NSArray<NSString *> *sets = SPKeywordSetsForLexer(lexerName);
     if (!sets) sets = FallbackKeywords()[lexerName];
     if (sets) {
         for (NSInteger slot = 0; slot < (NSInteger)sets.count; slot++) {
@@ -266,11 +266,11 @@ BOOL SciIsModified(NSView *view) {
 // One small ObjC class per view holds the block. We store it via associated
 // objects so we don't subclass ScintillaView.
 
-@interface RNPSciDelegate : NSObject <ScintillaNotificationProtocol>
+@interface SPSciDelegate : NSObject <ScintillaNotificationProtocol>
 @property (nonatomic, copy, nullable) void (^handler)(SciNotification);
 @end
 
-@implementation RNPSciDelegate
+@implementation SPSciDelegate
 - (void)notification:(SCNotification *)scn {
     if (!self.handler) return;
     int code = scn->nmhdr.code;
@@ -284,18 +284,18 @@ BOOL SciIsModified(NSView *view) {
 }
 @end
 
-static const char kRNPSciDelegateKey = 0;
+static const char kSPSciDelegateKey = 0;
 
 void SciSetNotificationHandler(NSView *view, void (^handler)(SciNotification type)) {
     ScintillaView *v = (ScintillaView *)view;
     if (!handler) {
         v.delegate = nil;
-        objc_setAssociatedObject(v, &kRNPSciDelegateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(v, &kSPSciDelegateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         return;
     }
-    RNPSciDelegate *d = [[RNPSciDelegate alloc] init];
+    SPSciDelegate *d = [[SPSciDelegate alloc] init];
     d.handler = handler;
-    objc_setAssociatedObject(v, &kRNPSciDelegateKey, d, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(v, &kSPSciDelegateKey, d, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     v.delegate = d;
 }
 

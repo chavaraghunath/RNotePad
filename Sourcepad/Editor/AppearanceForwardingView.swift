@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — root container for the editor. Two jobs:
+// Sourcepad — root container for the editor. Two jobs:
 //   1. Forward viewDidChangeEffectiveAppearance to the view controller
 //      (NSViewController doesn't receive this call, NSView does).
 //   2. Accept file drops anywhere on the editor surface and hand each URL

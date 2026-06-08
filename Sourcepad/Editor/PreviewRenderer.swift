@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — shared HTML/Markdown rendering for the preview pane.
+// Sourcepad — shared HTML/Markdown rendering for the preview pane.
 
 import AppKit
 import WebKit

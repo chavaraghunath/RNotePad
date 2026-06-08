@@ -3,7 +3,7 @@
 
 #import "KeywordSetsGenerated.h"
 
-NSArray<NSString *> *RNPKeywordSetsForLexer(NSString *lexerName) {
+NSArray<NSString *> *SPKeywordSetsForLexer(NSString *lexerName) {
     static NSDictionary<NSString *, NSArray<NSString *> *> *table = nil;
     static dispatch_once_t once;
     dispatch_once(&once, ^{

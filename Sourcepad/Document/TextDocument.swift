@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — NSDocument backing a single text file.
+// Sourcepad — NSDocument backing a single text file.
 
 import AppKit
 
-@objc(RNPTextDocument)
+@objc(SPTextDocument)
 public final class TextDocument: NSDocument {
 
     /// In-memory contents. Set from disk via read(from:ofType:) and from the

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — color schemes for the editor.
+// Sourcepad — color schemes for the editor.
 //
 // Light palette derived from VS Code "Default Light+", dark from
 // "Default Dark+" (MIT, microsoft/vscode). Per-lexer style indices come from

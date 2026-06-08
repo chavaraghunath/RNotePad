@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — manual CSS tokenizer for HTML <style> blocks.
+// Sourcepad — manual CSS tokenizer for HTML <style> blocks.
 //
 // Lexilla's hypertext lexer doesn't sub-lex CSS inside <style>...</style>
 // (only JS via SCE_HJ_*, VBS, PHP, Python). This post-pass finds <style>

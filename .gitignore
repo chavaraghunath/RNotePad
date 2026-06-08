@@ -6,10 +6,14 @@
 # macOS junk
 .DS_Store
 
-# Build artifacts
-build/
-RNotePad/build/
+# Build artifacts. The output dir is `dist/` (not `build/`) to avoid
+# colliding with the capitalised `Build/` source dir on case-insensitive APFS.
+Sourcepad/dist/
 swift-proof/build/
+
+# Any intermediates that land in the source tree
+*.o
+*.app/
 
 # Xcode
 *.xcuserstate

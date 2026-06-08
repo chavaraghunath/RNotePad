@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Rnotepad — right pane of the editor split. A WKWebView that renders
+// Sourcepad — right pane of the editor split. A WKWebView that renders
 // HTML or Markdown.
 
 import AppKit
