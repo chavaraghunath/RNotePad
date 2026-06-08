@@ -80,9 +80,10 @@ public enum MainMenu {
                          action: #selector(NSDocument.revertToSaved(_:)),
                          keyEquivalent: "")
         fileMenu.addItem(.separator())
+        // No key equivalent — Cmd-Shift-P is reserved for View > Toggle Preview.
         fileMenu.addItem(withTitle: "Page Setup…",
                          action: #selector(NSDocument.runPageLayout(_:)),
-                         keyEquivalent: "P")
+                         keyEquivalent: "")
         fileMenu.addItem(withTitle: "Print…",
                          action: #selector(NSDocument.printDocument(_:)),
                          keyEquivalent: "p")

@@ -27,17 +27,26 @@ public final class EditorPaneViewController: NSViewController {
         let root = AppearanceForwardingView(frame: NSRect(x: 0, y: 0, width: 600, height: 600))
         root.onAppearanceChange = { [weak self] in self?.applyColorScheme() }
 
-        // Find bar at the top, height 0 by default (hidden).
+        // Find bar — auto-layout, height starts at 0 (hidden).
         let bar = FindBar()
         bar.translatesAutoresizingMaskIntoConstraints = false
         bar.onClose = { [weak self] in self?.hideFindBar() }
         root.addSubview(bar)
         self.findBar = bar
 
-        // Editor container — sits below find bar, fills remaining space.
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(container)
+        // Scintilla view — pinned to fill from the find bar's bottom downward.
+        // Pure auto-layout (no autoresizing-inside-constraint-container hybrid)
+        // so the editor always gets a valid size, which is what trackpad scroll
+        // routing depends on.
+        let editor = SciMakeView(.zero)
+        editor.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(editor)
+        self.sciView = editor
+
+        // Drop overlay — same frame as the editor.
+        let dropOverlay = FileDropOverlay(frame: .zero)
+        dropOverlay.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(dropOverlay)
 
         let heightConstraint = bar.heightAnchor.constraint(equalToConstant: 0)
         self.findBarHeight = heightConstraint
@@ -48,21 +57,16 @@ public final class EditorPaneViewController: NSViewController {
             bar.topAnchor.constraint(equalTo: root.topAnchor),
             heightConstraint,
 
-            container.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            container.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            container.topAnchor.constraint(equalTo: bar.bottomAnchor),
-            container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            editor.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            editor.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            editor.topAnchor.constraint(equalTo: bar.bottomAnchor),
+            editor.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+
+            dropOverlay.leadingAnchor.constraint(equalTo: editor.leadingAnchor),
+            dropOverlay.trailingAnchor.constraint(equalTo: editor.trailingAnchor),
+            dropOverlay.topAnchor.constraint(equalTo: editor.topAnchor),
+            dropOverlay.bottomAnchor.constraint(equalTo: editor.bottomAnchor),
         ])
-
-        // Scintilla view + drop overlay use autoresizing inside the container.
-        let editor = SciMakeView(NSRect(x: 0, y: 0, width: 600, height: 600))
-        editor.autoresizingMask = [.width, .height]
-        container.addSubview(editor)
-        self.sciView = editor
-
-        let dropOverlay = FileDropOverlay(frame: editor.frame)
-        dropOverlay.autoresizingMask = [.width, .height]
-        container.addSubview(dropOverlay)
 
         installNotificationHandler()
         bar.editorView = editor

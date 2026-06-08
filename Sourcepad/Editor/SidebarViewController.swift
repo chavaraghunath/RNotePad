@@ -65,8 +65,8 @@ public final class SidebarViewController: NSViewController,
         outline.backgroundColor = .clear
         outline.style = .sourceList
         outline.target = self
-        outline.doubleAction = #selector(rowDoubleClicked(_:))
-        outline.action = nil
+        outline.action = #selector(rowClicked(_:))         // single-click: open file, toggle folder
+        outline.doubleAction = #selector(rowClicked(_:))   // keep double-click working too
 
         let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name"))
         col.title = "Name"
@@ -151,7 +151,10 @@ public final class SidebarViewController: NSViewController,
         }
     }
 
-    @objc private func rowDoubleClicked(_ sender: Any?) {
+    @objc private func rowClicked(_ sender: Any?) {
+        // clickedRow is -1 when the action fires from keyboard nav or programmatic
+        // selection — only act on actual mouse clicks so arrow-key navigation
+        // doesn't open every file as you scroll past it.
         let row = outline.clickedRow
         guard row >= 0, let url = outline.item(atRow: row) as? URL else { return }
         var isDir: ObjCBool = false
