@@ -124,6 +124,35 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: "Sourcepad.gitGutter"); notify() }
     }
 
+    // MARK: - Workspace (Phase 2)
+
+    /// Stable id of the active workspace. nil = pick whichever exists first
+    /// (handled by WorkspaceManager.activeWorkspace).
+    public var defaultWorkspaceID: String? {
+        get { defaults.string(forKey: "Sourcepad.defaultWorkspaceID") }
+        set {
+            if let v = newValue { defaults.set(v, forKey: "Sourcepad.defaultWorkspaceID") }
+            else                 { defaults.removeObject(forKey: "Sourcepad.defaultWorkspaceID") }
+            notify()
+        }
+    }
+
+    /// Whether the background project indexer runs at all.
+    public var indexerEnabled: Bool {
+        get { defaults.object(forKey: "Sourcepad.indexerEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "Sourcepad.indexerEnabled"); notify() }
+    }
+
+    /// Size cap (bytes) above which the indexer records a file row but
+    /// skips its content hashing pass.
+    public var indexerMaxFileSize: Int {
+        get {
+            let v = defaults.integer(forKey: "Sourcepad.indexerMaxFileSize")
+            return v > 0 ? v : 1_000_000
+        }
+        set { defaults.set(newValue, forKey: "Sourcepad.indexerMaxFileSize"); notify() }
+    }
+
     private func notify() {
         NotificationCenter.default.post(name: .sourcepadPreferencesChanged, object: self)
     }

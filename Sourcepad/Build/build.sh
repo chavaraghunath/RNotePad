@@ -56,6 +56,11 @@ SWIFT_SRCS=(
     "$APP_DIR/App/PreferencesWindowController.swift"
     "$APP_DIR/App/SessionRestore.swift"
     "$APP_DIR/App/ClosedTabHistory.swift"
+    "$APP_DIR/Workspace/Workspace.swift"
+    "$APP_DIR/Workspace/WorkspaceManager.swift"
+    "$APP_DIR/Workspace/ProjectIndex.swift"
+    "$APP_DIR/Workspace/IndexerCoordinator.swift"
+    "$APP_DIR/Workspace/WorkspaceIndexHost.swift"
     "$APP_DIR/Editor/GoToLinePanel.swift"
     "$APP_DIR/Editor/AutoPair.swift"
     "$APP_DIR/Editor/CommentSyntax.swift"
@@ -71,6 +76,7 @@ SWIFT_SRCS=(
     "$APP_DIR/Editor/EditorViewController.swift"
     "$APP_DIR/Editor/EditorPaneViewController.swift"
     "$APP_DIR/Editor/PreviewPaneViewController.swift"
+    "$APP_DIR/Editor/SidebarTabBar.swift"
     "$APP_DIR/Editor/SidebarViewController.swift"
     "$APP_DIR/Editor/StatusBarView.swift"
     "$APP_DIR/Editor/RootContentViewController.swift"
@@ -95,6 +101,7 @@ swiftc "${SWIFT_SRCS[@]}" \
     -Xlinker "$BUILD_DIR/SciTextView.o" \
     -Xlinker "$BUILD_DIR/KeywordSetsGenerated.o" \
     -Xlinker -lc++ \
+    -Xlinker -lsqlite3 \
     -Xlinker -rpath -Xlinker "@executable_path/../Frameworks" \
     -O \
     -o "$BUILD_DIR/Sourcepad"

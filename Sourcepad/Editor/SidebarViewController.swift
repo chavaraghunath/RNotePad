@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Sourcepad — left-pane sidebar showing a file tree rooted at a folder.
-// Double-clicking a file opens it via NSDocumentController; folders expand inline.
+// Sourcepad — left-pane sidebar.
+//
+// Phase 2 expansion: the sidebar is now workspace-aware. The outline shows
+// one or more roots from the active Workspace. The tab strip above the
+// outline currently surfaces only the "Files" tab; later phases append
+// Outline, Tasks, Tags, and Backlinks tabs as those features land.
+//
+// Backward-compat shim: setRoot(_:) is preserved so call sites that still
+// pass a single URL keep working — internally it routes through addRoot.
 
 import AppKit
 
@@ -14,15 +21,22 @@ public final class SidebarViewController: NSViewController,
                                           NSOutlineViewDataSource,
                                           NSOutlineViewDelegate {
 
-    /// Folder shown at the top of the tree. nil = "no folder picked".
-    public private(set) var rootURL: URL?
+    /// Convenience: the first root (or nil). Kept for the small number of
+    /// callers that only care about a single folder (Open Folder dialog
+    /// default, session-restore plumbing). New code should read the
+    /// workspace directly via WorkspaceManager.shared.
+    public var rootURL: URL? { workspace.roots.first }
 
-    /// Called when the user activates (double-click or Enter) a file row.
+    /// Active workspace. Setting this rebuilds the outline.
+    public private(set) var workspace: Workspace = WorkspaceManager.shared.activeWorkspace
+
+    /// Called when the user activates (single-click or Enter) a file row.
     public var onOpen: ((URL) -> Void)?
 
     private let outline = NSOutlineView()
     private let scroll  = NSScrollView()
-    private let header  = NSTextField(labelWithString: "No folder open")
+    private let header  = NSTextField(labelWithString: "")
+    private let tabBar  = SidebarTabBar()
     private let openFolderButton = NSButton(title: "Open Folder…", target: nil, action: nil)
     private let emptyState = NSStackView()
 
@@ -35,7 +49,17 @@ public final class SidebarViewController: NSViewController,
         root.wantsLayer = true
         root.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
-        // Header strip: folder name + a refresh button.
+        // Tab strip (initially only the Files tab; tab strip hides itself
+        // when there's only one tab so visible behavior matches Phase 1).
+        tabBar.tabs = [.files]
+        tabBar.translatesAutoresizingMaskIntoConstraints = false
+        tabBar.onSelect = { [weak self] tab in
+            self?.handleTabSelection(tab)
+        }
+        root.addSubview(tabBar)
+
+        // Header strip: folder name (single root) or workspace name (multi-root)
+        // + a refresh button.
         header.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
         header.textColor = .secondaryLabelColor
         header.lineBreakMode = .byTruncatingMiddle
@@ -106,9 +130,14 @@ public final class SidebarViewController: NSViewController,
         root.addSubview(emptyState)
 
         NSLayoutConstraint.activate([
+            // Tab bar pinned to the top (collapses to 0 height when hidden).
+            tabBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            tabBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            tabBar.topAnchor.constraint(equalTo: root.topAnchor),
+
             headerStack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             headerStack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            headerStack.topAnchor.constraint(equalTo: root.topAnchor),
+            headerStack.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
             headerStack.heightAnchor.constraint(equalToConstant: 30),
 
             divider.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -126,24 +155,74 @@ public final class SidebarViewController: NSViewController,
         ])
 
         self.view = root
-        updateEmptyState()
+        applyWorkspace()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(activeWorkspaceChanged),
+            name: .sourcepadActiveWorkspaceChanged,
+            object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Public API
 
-    public func setRoot(_ url: URL?) {
-        rootURL = url
+    /// Replace the workspace shown in the sidebar. Reloads the outline.
+    public func setWorkspace(_ ws: Workspace) {
+        workspace = ws
         childrenCache.removeAll()
-        header.stringValue = url?.lastPathComponent ?? "No folder open"
-        outline.reloadData()
-        if let url { outline.expandItem(url) }
-        updateEmptyState()
+        applyWorkspace()
+    }
+
+    /// Add `url` as a root in the active workspace and reload.
+    public func addRoot(_ url: URL) {
+        workspace = WorkspaceManager.shared.addRoot(url)
+        childrenCache.removeAll()
+        applyWorkspace()
+        outline.expandItem(url.standardizedFileURL)
+    }
+
+    /// Remove `url` from the active workspace and reload.
+    public func removeRoot(_ url: URL) {
+        workspace = WorkspaceManager.shared.removeRoot(url)
+        childrenCache.removeAll()
+        applyWorkspace()
+    }
+
+    /// Legacy shim — callers that still pass a single URL go through here.
+    /// Treated as "make this the workspace's only root" so behavior matches
+    /// the prior single-root semantics.
+    public func setRoot(_ url: URL?) {
+        guard let url else {
+            // Clear all roots in the active workspace.
+            var ws = WorkspaceManager.shared.activeWorkspace
+            ws.roots = []
+            WorkspaceManager.shared.upsert(ws)
+            workspace = ws
+            childrenCache.removeAll()
+            applyWorkspace()
+            return
+        }
+        var ws = WorkspaceManager.shared.activeWorkspace
+        ws.roots = [url.standardizedFileURL]
+        WorkspaceManager.shared.upsert(ws)
+        workspace = ws
+        childrenCache.removeAll()
+        applyWorkspace()
+        outline.expandItem(url.standardizedFileURL)
+    }
+
+    @objc private func activeWorkspaceChanged() {
+        setWorkspace(WorkspaceManager.shared.activeWorkspace)
     }
 
     @objc public func refreshTapped(_ sender: Any?) {
         childrenCache.removeAll()
         outline.reloadData()
-        if let rootURL { outline.expandItem(rootURL) }
+        for r in workspace.roots { outline.expandItem(r) }
     }
 
     @objc public func openFolderTapped(_ sender: Any?) {
@@ -154,7 +233,7 @@ public final class SidebarViewController: NSViewController,
         panel.prompt = "Open Folder"
         panel.beginSheetModal(for: view.window ?? NSApp.keyWindow ?? NSWindow()) { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
-            self?.setRoot(url)
+            self?.addRoot(url)
         }
     }
 
@@ -173,23 +252,51 @@ public final class SidebarViewController: NSViewController,
         onOpen?(url)
     }
 
+    // MARK: - Tab handling
+
+    private func handleTabSelection(_ tab: SidebarTab) {
+        // Phase 2 ships only the Files tab; future phases swap content
+        // panels here based on the selected tab.
+        _ = tab
+    }
+
+    // MARK: - View-state plumbing
+
+    private func applyWorkspace() {
+        outline.reloadData()
+        updateHeader()
+        updateEmptyState()
+        for r in workspace.roots { outline.expandItem(r) }
+    }
+
+    private func updateHeader() {
+        switch workspace.roots.count {
+        case 0:
+            header.stringValue = ""
+        case 1:
+            header.stringValue = workspace.roots[0].lastPathComponent
+        default:
+            header.stringValue = "Workspace: \(workspace.name)"
+        }
+    }
+
     private func updateEmptyState() {
-        let hasRoot = (rootURL != nil)
-        scroll.isHidden = !hasRoot
-        emptyState.isHidden = hasRoot
-        header.isHidden = !hasRoot
+        let hasAny = !workspace.roots.isEmpty
+        scroll.isHidden = !hasAny
+        emptyState.isHidden = hasAny
+        header.isHidden = !hasAny
     }
 
     // MARK: - Data source
 
     public func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-        if item == nil { return rootURL != nil ? 1 : 0 }
+        if item == nil { return workspace.roots.count }
         guard let url = item as? URL else { return 0 }
         return children(of: url).count
     }
 
     public func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        if item == nil { return rootURL! }
+        if item == nil { return workspace.roots[index] }
         guard let url = item as? URL else { return URL(fileURLWithPath: "/") }
         return children(of: url)[index]
     }
@@ -241,8 +348,6 @@ public final class SidebarViewController: NSViewController,
         return 20
     }
 
-    // MARK: - Filesystem listing (cached)
-
     // MARK: - Context menu (right-click)
 
     private func makeContextMenu() -> NSMenu {
@@ -255,11 +360,12 @@ public final class SidebarViewController: NSViewController,
             ("Move to Trash", #selector(menuMoveToTrash(_:))),
             ("Reveal in Finder", #selector(menuReveal(_:))),
             ("Copy Path",     #selector(menuCopyPath(_:))),
+            ("Remove from Workspace", #selector(menuRemoveRoot(_:))),
         ] {
             let item = NSMenuItem(title: title, action: sel, keyEquivalent: "")
             item.target = self
             menu.addItem(item)
-            if title == "New Folder" || title == "Move to Trash" {
+            if title == "New Folder" || title == "Move to Trash" || title == "Copy Path" {
                 menu.addItem(.separator())
             }
         }
@@ -268,7 +374,7 @@ public final class SidebarViewController: NSViewController,
 
     private func clickedURL() -> URL? {
         let row = outline.clickedRow
-        guard row >= 0 else { return rootURL }
+        guard row >= 0 else { return workspace.roots.first }
         return outline.item(atRow: row) as? URL
     }
 
@@ -276,6 +382,11 @@ public final class SidebarViewController: NSViewController,
         var isDir: ObjCBool = false
         FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
         return isDir.boolValue ? url : url.deletingLastPathComponent()
+    }
+
+    private func isWorkspaceRoot(_ url: URL) -> Bool {
+        let std = url.standardizedFileURL
+        return workspace.roots.contains(where: { $0.standardizedFileURL == std })
     }
 
     @objc private func menuNewFile(_ sender: Any?) {
@@ -304,7 +415,7 @@ public final class SidebarViewController: NSViewController,
     }
 
     @objc private func menuRename(_ sender: Any?) {
-        guard let url = clickedURL(), url != rootURL else { return }
+        guard let url = clickedURL(), !isWorkspaceRoot(url) else { return }
         let alert = makePromptAlert(title: "Rename", message: "New name:", defaultValue: url.lastPathComponent)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = alert.input
@@ -319,7 +430,7 @@ public final class SidebarViewController: NSViewController,
     }
 
     @objc private func menuMoveToTrash(_ sender: Any?) {
-        guard let url = clickedURL(), url != rootURL else { return }
+        guard let url = clickedURL(), !isWorkspaceRoot(url) else { return }
         NSWorkspace.shared.recycle([url]) { [weak self] _, _ in
             self?.refreshAfterMutation(parent: url.deletingLastPathComponent())
         }
@@ -336,11 +447,16 @@ public final class SidebarViewController: NSViewController,
         NSPasteboard.general.setString(url.path, forType: .string)
     }
 
+    @objc private func menuRemoveRoot(_ sender: Any?) {
+        guard let url = clickedURL(), isWorkspaceRoot(url) else { NSSound.beep(); return }
+        removeRoot(url)
+    }
+
     private func refreshAfterMutation(parent: URL) {
         childrenCache.removeValue(forKey: parent)
         DispatchQueue.main.async { [weak self] in
             self?.outline.reloadData()
-            if let root = self?.rootURL { self?.outline.expandItem(root) }
+            for r in self?.workspace.roots ?? [] { self?.outline.expandItem(r) }
         }
     }
 

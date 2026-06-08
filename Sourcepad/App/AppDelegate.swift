@@ -8,6 +8,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func applicationDidFinishLaunching(_ notification: Notification) {
         DebugLog.log("==== launch ====")
         NSWindow.allowsAutomaticWindowTabbing = true
+
+        // Phase 2: prime the active workspace + start the background indexer
+        // BEFORE the menu is built so the Workspace submenu picks up the
+        // populated workspace list correctly.
+        _ = WorkspaceManager.shared.activeWorkspace
+        WorkspaceIndexHost.shared.start()
+
         NSApp.mainMenu = MainMenu.build()
         NSApp.activate(ignoringOtherApps: true)
 

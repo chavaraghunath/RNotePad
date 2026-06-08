@@ -65,6 +65,13 @@ public enum MainMenu {
                            keyEquivalent: "")
         fileMenu.addItem(recent)
         fileMenu.addItem(.separator())
+
+        // Workspace submenu (Phase 2)
+        let workspaceItem = NSMenuItem(title: "Workspace", action: nil, keyEquivalent: "")
+        workspaceItem.submenu = WorkspaceMenu.makeMenu()
+        fileMenu.addItem(workspaceItem)
+        fileMenu.addItem(.separator())
+
         fileMenu.addItem(withTitle: "Close",
                          action: #selector(NSWindow.performClose(_:)),
                          keyEquivalent: "w")
@@ -481,5 +488,144 @@ enum LanguageMenu {
             return vc
         }
         return nil
+    }
+}
+
+// MARK: - Workspace menu (Phase 2)
+
+enum WorkspaceMenu {
+
+    /// Build the workspace submenu. Rebuilt lazily; the NSMenu delegate
+    /// refreshes the dynamic items each time the menu opens so checkmarks
+    /// match the currently-active workspace even after switching.
+    static func makeMenu() -> NSMenu {
+        let menu = NSMenu(title: "Workspace")
+        menu.delegate = WorkspaceMenuTarget.shared
+        WorkspaceMenuTarget.shared.populate(menu)
+        return menu
+    }
+}
+
+@objc final class WorkspaceMenuTarget: NSObject, NSMenuDelegate {
+    @objc static let shared = WorkspaceMenuTarget()
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        populate(menu)
+    }
+
+    func populate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let active = WorkspaceManager.shared.activeWorkspace
+        for ws in WorkspaceManager.shared.workspaces {
+            let item = NSMenuItem(title: ws.name,
+                                  action: #selector(switchWorkspace(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            item.representedObject = ws.id
+            item.state = (ws.id == active.id) ? .on : .off
+            menu.addItem(item)
+        }
+        if WorkspaceManager.shared.workspaces.count > 0 {
+            menu.addItem(.separator())
+        }
+        let actions: [(String, Selector)] = [
+            ("Add Folder to Workspace…", #selector(addFolderToWorkspace(_:))),
+            ("New Workspace…",           #selector(newWorkspace(_:))),
+            ("Rename Workspace…",        #selector(renameWorkspace(_:))),
+            ("Delete Workspace…",        #selector(deleteWorkspace(_:))),
+        ]
+        for (title, sel) in actions {
+            let item = NSMenuItem(title: title, action: sel, keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        let reveal = NSMenuItem(title: "Reveal Workspaces Folder",
+                                action: #selector(revealWorkspacesFolder(_:)),
+                                keyEquivalent: "")
+        reveal.target = self
+        menu.addItem(reveal)
+    }
+
+    @objc func switchWorkspace(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String,
+              let ws = WorkspaceManager.shared.workspaces.first(where: { $0.id == id }) else { return }
+        WorkspaceManager.shared.activeWorkspace = ws
+    }
+
+    @objc func addFolderToWorkspace(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add to Workspace"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        WorkspaceManager.shared.addRoot(url)
+        NotificationCenter.default.post(name: .sourcepadActiveWorkspaceChanged, object: nil)
+    }
+
+    @objc func newWorkspace(_ sender: Any?) {
+        let alert = NameAlert()
+        alert.messageText = "New Workspace"
+        alert.informativeText = "Name:"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 22))
+        field.bezelStyle = .roundedBezel
+        alert.accessoryView = field
+        alert.field = field
+        alert.addButton(withTitle: "Create")
+        alert.addButton(withTitle: "Cancel")
+        DispatchQueue.main.async { field.becomeFirstResponder() }
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = alert.input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let ws = Workspace(name: name)
+        WorkspaceManager.shared.upsert(ws)
+        WorkspaceManager.shared.activeWorkspace = ws
+    }
+
+    @objc func renameWorkspace(_ sender: Any?) {
+        var ws = WorkspaceManager.shared.activeWorkspace
+        let alert = NameAlert()
+        alert.messageText = "Rename Workspace"
+        alert.informativeText = "New name:"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 22))
+        field.stringValue = ws.name
+        field.bezelStyle = .roundedBezel
+        alert.accessoryView = field
+        alert.field = field
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        DispatchQueue.main.async { field.becomeFirstResponder(); field.selectText(nil) }
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = alert.input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        ws.name = name
+        WorkspaceManager.shared.upsert(ws)
+    }
+
+    @objc func deleteWorkspace(_ sender: Any?) {
+        let ws = WorkspaceManager.shared.activeWorkspace
+        guard WorkspaceManager.shared.workspaces.count > 1 else {
+            NSSound.beep()
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Delete workspace \"\(ws.name)\"?"
+        alert.informativeText = "The workspace metadata + its project index are removed. Files in the folder roots are NOT touched."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        WorkspaceManager.shared.delete(ws.id)
+    }
+
+    @objc func revealWorkspacesFolder(_ sender: Any?) {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory,
+                                               in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory())
+                .appendingPathComponent("Library/Application Support")
+        let dir = support.appendingPathComponent("Sourcepad/Workspaces", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        NSWorkspace.shared.activateFileViewerSelecting([dir])
     }
 }
