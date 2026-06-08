@@ -49,10 +49,41 @@
             <string>Alternate</string>
             <key>LSItemContentTypes</key>
             <array>
+                <!-- Plain text + the parent UTI for source code (covers
+                     types Launch Services maps via inheritance). -->
                 <string>public.plain-text</string>
                 <string>public.source-code</string>
+                <string>public.script</string>
                 <string>public.text</string>
                 <string>public.data</string>
+
+                <!-- Specific source / data UTIs so Finder's "Open With"
+                     menu surfaces Sourcepad even when LS doesn't expand
+                     via parent-UTI matching. -->
+                <string>public.swift-source</string>
+                <string>public.objective-c-source</string>
+                <string>public.objective-c-plus-plus-source</string>
+                <string>public.c-source</string>
+                <string>public.c-header</string>
+                <string>public.c-plus-plus-source</string>
+                <string>public.c-plus-plus-header</string>
+                <string>public.python-script</string>
+                <string>public.ruby-script</string>
+                <string>public.perl-script</string>
+                <string>public.shell-script</string>
+                <string>com.sun.java-source</string>
+                <string>com.netscape.javascript-source</string>
+                <string>public.json</string>
+                <string>public.xml</string>
+                <string>public.yaml</string>
+                <string>public.html</string>
+                <string>public.css</string>
+                <string>public.rtf</string>
+                <string>public.comma-separated-values-text</string>
+                <string>public.tab-separated-values-text</string>
+                <string>net.daringfireball.markdown</string>
+                <string>com.apple.property-list</string>
+                <string>org.gnu.gnu-tar-archive</string>
             </array>
             <key>NSDocumentClass</key>
             <string>SPTextDocument</string>

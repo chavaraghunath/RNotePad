@@ -221,8 +221,16 @@ printf 'APPL????' > "$APP_BUNDLE/Contents/PkgInfo"
 echo "==> Codesigning (ad-hoc)"
 codesign --force --deep --sign - "$APP_BUNDLE" 2>&1 | tail -3 || true
 
-# 7. Register with LaunchServices so Finder/Dock pick up the new bundle id + icon.
-/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "$APP_BUNDLE" 2>/dev/null || true
+# 7. Register with LaunchServices so Finder/Dock pick up the new bundle id +
+#    icon + the (expanded) CFBundleDocumentTypes. The `-f` flag forces a
+#    re-registration even if the bundle hash matched a prior entry; without
+#    it the new UTI list isn't picked up on rebuilds of the same path.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister
+"$LSREGISTER" -f -r -trusted "$APP_BUNDLE" 2>/dev/null || true
+# Also nudge Finder so the "Open With" submenu refreshes for already-shown
+# folders (Finder caches the menu per process lifetime; killall makes the
+# next right-click pick up the new types).
+killall -KILL Finder 2>/dev/null || true
 
 echo ""
 echo "Built: $APP_BUNDLE"
