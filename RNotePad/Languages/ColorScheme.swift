@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
-// RNotePad — Color schemes for the editor.
+// RNotePad — color schemes for the editor.
 //
-// Palettes are derived from VS Code's "Default Light+" and "Default Dark+"
-// (MIT, microsoft/vscode). Each scheme maps Scintilla style indices to
-// NSColor + bold flag. Different lexer families use different style index
-// ranges, so we ship one palette per family (cpp-family, web, generic).
+// Light palette derived from VS Code "Default Light+", dark from
+// "Default Dark+" (MIT, microsoft/vscode). Per-lexer style indices come from
+// lexilla/include/SciLexer.h.
 
 import AppKit
 
 public enum ThemeMode {
     case light
     case dark
-
     static func from(_ appearance: NSAppearance) -> ThemeMode {
         let match = appearance.bestMatch(from: [.aqua, .darkAqua])
         return match == .darkAqua ? .dark : .light
@@ -23,7 +21,6 @@ public struct ColorScheme {
     public let defaultBg: NSColor
     public let lineNumberFg: NSColor
     public let lineNumberBg: NSColor
-    /// Map of Scintilla style index → (fg, bg, bold)
     public let styles: [Int: StyleAttrs]
 
     public struct StyleAttrs {
@@ -31,13 +28,10 @@ public struct ColorScheme {
         public let bg: NSColor?
         public let bold: Bool
         public init(fg: NSColor? = nil, bg: NSColor? = nil, bold: Bool = false) {
-            self.fg = fg
-            self.bg = bg
-            self.bold = bold
+            self.fg = fg; self.bg = bg; self.bold = bold
         }
     }
 
-    /// Convert to the dictionary form that SciApplyPalette expects.
     public func bridgePalette() -> [NSNumber: [String: Any]] {
         var out: [NSNumber: [String: Any]] = [:]
         for (idx, attrs) in styles {
@@ -60,236 +54,384 @@ extension NSColor {
     }
 }
 
-// MARK: - Style index constants (mirrored from SciLexer.h, kept tiny)
-// We avoid exposing SciLexer.h to Swift; these are the ones we color.
-private enum SCE {
-    // C/C++/Java/Swift/Go/JS/TS (Lexilla "cpp" family)
-    static let cDefault     = 0
-    static let cComment     = 1
-    static let cCommentLine = 2
-    static let cCommentDoc  = 3
-    static let cNumber      = 4
-    static let cWord        = 5    // primary keywords
-    static let cString      = 6
-    static let cCharacter   = 7
-    static let cPreprocessor = 9
-    static let cOperator    = 10
-    static let cIdentifier  = 11
-    static let cStringEol   = 12
-    static let cVerbatim    = 13
-    static let cRegex       = 14
-    static let cCommentLineDoc = 15
-    static let cWord2       = 16
-    static let cCommentDocKeyword = 17
+private typealias S = ColorScheme.StyleAttrs
 
-    // Python (Lexilla "python")
-    static let pyDefault = 0
-    static let pyCommentLine = 1
-    static let pyNumber = 2
-    static let pyString = 3
-    static let pyCharacter = 4
-    static let pyWord = 5
-    static let pyTriple = 6
-    static let pyTripleDouble = 7
-    static let pyClassName = 8
-    static let pyFuncName = 9
-    static let pyOperator = 10
-    static let pyIdentifier = 11
-    static let pyCommentBlock = 12
-    static let pyStringEol = 13
-    static let pyWord2 = 14
-    static let pyDecorator = 15
+// VS Code "Default Light+" / "Default Dark+" color tokens.
+private enum Palette {
+    // Backgrounds + base fg
+    static let bgLight   = NSColor.hex(0xFFFFFF)
+    static let fgLight   = NSColor.hex(0x000000)
+    static let lnFgLight = NSColor.hex(0x237893)
+    static let bgDark    = NSColor.hex(0x1E1E1E)
+    static let fgDark    = NSColor.hex(0xD4D4D4)
+    static let lnFgDark  = NSColor.hex(0x858585)
 
-    // JSON (Lexilla "json")
-    static let jsonDefault = 0
-    static let jsonNumber = 1
-    static let jsonString = 2
-    static let jsonStringEol = 3
-    static let jsonPropertyName = 4
-    static let jsonEscape = 5
-    static let jsonOperator = 6
-    static let jsonUri = 7
-    static let jsonCompactIRI = 8
-    static let jsonKeyword = 9
-    static let jsonLdKeyword = 10
-    static let jsonError = 11
+    // Token colors
+    static let lightComment    = NSColor.hex(0x008000)
+    static let lightString     = NSColor.hex(0xA31515)
+    static let lightNumber     = NSColor.hex(0x098658)
+    static let lightKeyword    = NSColor.hex(0x0000FF)
+    static let lightType       = NSColor.hex(0x267F99)
+    static let lightFunction   = NSColor.hex(0x795E26)
+    static let lightOperator   = NSColor.hex(0x000000)
+    static let lightVariable   = NSColor.hex(0x001080)
+    static let lightProperty   = NSColor.hex(0x0451A5)
+    static let lightTag        = NSColor.hex(0x800000)
+    static let lightAttribute  = NSColor.hex(0xE50000)  // red-ish for HTML attrs
+    static let lightRegex      = NSColor.hex(0x811F3F)
+    static let lightDecorator  = NSColor.hex(0xAF00DB)
+    static let lightLink       = NSColor.hex(0x0070C0)
+    static let lightHeading    = NSColor.hex(0x800000)
+
+    static let darkComment     = NSColor.hex(0x6A9955)
+    static let darkString      = NSColor.hex(0xCE9178)
+    static let darkNumber      = NSColor.hex(0xB5CEA8)
+    static let darkKeyword     = NSColor.hex(0x569CD6)
+    static let darkType        = NSColor.hex(0x4EC9B0)
+    static let darkFunction    = NSColor.hex(0xDCDCAA)
+    static let darkOperator    = NSColor.hex(0xD4D4D4)
+    static let darkVariable    = NSColor.hex(0x9CDCFE)
+    static let darkProperty    = NSColor.hex(0x9CDCFE)
+    static let darkTag         = NSColor.hex(0x569CD6)
+    static let darkAttribute   = NSColor.hex(0x9CDCFE)
+    static let darkRegex       = NSColor.hex(0xD16969)
+    static let darkDecorator   = NSColor.hex(0xC586C0)
+    static let darkLink        = NSColor.hex(0x4FC1FF)
+    static let darkHeading     = NSColor.hex(0x569CD6)
 }
 
-public enum SchemeLibrary {
+private func wrap(_ styles: [Int: S], _ mode: ThemeMode) -> ColorScheme {
+    switch mode {
+    case .light:
+        return ColorScheme(defaultFg: Palette.fgLight, defaultBg: Palette.bgLight,
+                           lineNumberFg: Palette.lnFgLight, lineNumberBg: Palette.bgLight,
+                           styles: styles)
+    case .dark:
+        return ColorScheme(defaultFg: Palette.fgDark, defaultBg: Palette.bgDark,
+                           lineNumberFg: Palette.lnFgDark, lineNumberBg: Palette.bgDark,
+                           styles: styles)
+    }
+}
 
+// MARK: - Per-lexer style maps. Style indices from lexilla/include/SciLexer.h.
+
+private func cppStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENT
+        2:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENTLINE
+        3:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENTDOC
+        4:  S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // NUMBER
+        5:  S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),   // WORD
+        6:  S(fg: c ? Palette.lightString    : Palette.darkString),    // STRING
+        7:  S(fg: c ? Palette.lightString    : Palette.darkString),    // CHARACTER
+        9:  S(fg: c ? NSColor.hex(0x808080)  : NSColor.hex(0x808080)), // PREPROCESSOR
+        10: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // OPERATOR
+        11: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // IDENTIFIER
+        13: S(fg: c ? Palette.lightString    : Palette.darkString),    // VERBATIM
+        14: S(fg: c ? Palette.lightRegex     : Palette.darkRegex),     // REGEX
+        15: S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENTLINEDOC
+        16: S(fg: c ? Palette.lightType      : Palette.darkType),      // WORD2
+        17: S(fg: c ? Palette.lightComment   : Palette.darkComment, bold: true), // COMMENTDOCKEYWORD
+    ]
+}
+
+private func pythonStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment  : Palette.darkComment),  // COMMENTLINE
+        2:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),   // NUMBER
+        3:  S(fg: c ? Palette.lightString   : Palette.darkString),   // STRING
+        4:  S(fg: c ? Palette.lightString   : Palette.darkString),   // CHARACTER
+        5:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),  // WORD
+        6:  S(fg: c ? Palette.lightString   : Palette.darkString),   // TRIPLE
+        7:  S(fg: c ? Palette.lightString   : Palette.darkString),   // TRIPLEDOUBLE
+        8:  S(fg: c ? Palette.lightType     : Palette.darkType, bold: true), // CLASSNAME
+        9:  S(fg: c ? Palette.lightFunction : Palette.darkFunction), // FUNCNAME
+        10: S(fg: c ? Palette.lightOperator : Palette.darkOperator), // OPERATOR
+        11: S(fg: c ? Palette.lightVariable : Palette.darkVariable), // IDENTIFIER
+        12: S(fg: c ? Palette.lightComment  : Palette.darkComment),  // COMMENTBLOCK
+        14: S(fg: c ? Palette.lightType     : Palette.darkType),     // WORD2
+        15: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),// DECORATOR
+    ]
+}
+
+private func jsonStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),   // NUMBER
+        2:  S(fg: c ? Palette.lightString   : Palette.darkString),   // STRING
+        4:  S(fg: c ? Palette.lightProperty : Palette.darkProperty), // PROPERTYNAME
+        5:  S(fg: c ? NSColor.hex(0xEE0000) : NSColor.hex(0xD7BA7D)),// ESCAPESEQUENCE
+        6:  S(fg: c ? Palette.lightOperator : Palette.darkOperator), // OPERATOR
+        9:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),  // KEYWORD (true/false/null)
+        11: S(fg: NSColor.hex(0xFFFFFF), bg: NSColor.hex(c ? 0xCC0000 : 0x800000)), // ERROR
+    ]
+}
+
+// HTML / XML (Lexilla hypertext + xml use the same SCE_H_* style indices).
+private func htmlStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightTag       : Palette.darkTag),       // TAG
+        2:  S(fg: c ? Palette.lightTag       : Palette.darkTag),       // TAGUNKNOWN
+        3:  S(fg: c ? Palette.lightAttribute : Palette.darkAttribute), // ATTRIBUTE
+        4:  S(fg: c ? Palette.lightAttribute : Palette.darkAttribute), // ATTRIBUTEUNKNOWN
+        5:  S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // NUMBER
+        6:  S(fg: c ? Palette.lightString    : Palette.darkString),    // DOUBLESTRING
+        7:  S(fg: c ? Palette.lightString    : Palette.darkString),    // SINGLESTRING
+        8:  S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // OTHER
+        9:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENT
+        10: S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // ENTITY
+        11: S(fg: c ? Palette.lightTag       : Palette.darkTag),       // TAGEND
+        12: S(fg: c ? Palette.lightTag       : Palette.darkTag),       // XMLSTART
+        13: S(fg: c ? Palette.lightTag       : Palette.darkTag),       // XMLEND
+        14: S(fg: c ? Palette.lightString    : Palette.darkString),    // SCRIPT
+        17: S(fg: c ? Palette.lightString    : Palette.darkString),    // CDATA
+        18: S(fg: c ? Palette.lightTag       : Palette.darkTag),       // QUESTION
+        19: S(fg: c ? Palette.lightString    : Palette.darkString),    // VALUE
+        20: S(fg: c ? Palette.lightComment   : Palette.darkComment),   // XCCOMMENT
+        // SGML inside HTML
+        21: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),
+        22: S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),
+        23: S(fg: c ? Palette.lightProperty  : Palette.darkProperty),
+        24: S(fg: c ? Palette.lightString    : Palette.darkString),
+        25: S(fg: c ? Palette.lightString    : Palette.darkString),
+        29: S(fg: c ? Palette.lightComment   : Palette.darkComment),
+    ]
+}
+
+private func cssStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightTag       : Palette.darkTag),       // TAG
+        2:  S(fg: c ? Palette.lightType      : Palette.darkType),      // CLASS
+        3:  S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // PSEUDOCLASS
+        4:  S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // UNKNOWN_PSEUDOCLASS
+        5:  S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // OPERATOR
+        6:  S(fg: c ? Palette.lightProperty  : Palette.darkProperty),  // IDENTIFIER (prop name)
+        7:  S(fg: c ? Palette.lightProperty  : Palette.darkProperty),  // UNKNOWN_IDENTIFIER
+        8:  S(fg: c ? Palette.lightString    : Palette.darkString),    // VALUE
+        9:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENT
+        10: S(fg: c ? Palette.lightType      : Palette.darkType),      // ID
+        11: S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword, bold: true), // IMPORTANT
+        12: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator), // DIRECTIVE (@media etc.)
+        13: S(fg: c ? Palette.lightString    : Palette.darkString),    // DOUBLESTRING
+        14: S(fg: c ? Palette.lightString    : Palette.darkString),    // SINGLESTRING
+        15: S(fg: c ? Palette.lightProperty  : Palette.darkProperty),  // IDENTIFIER2
+        16: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // ATTRIBUTE
+        17: S(fg: c ? Palette.lightProperty  : Palette.darkProperty),  // IDENTIFIER3
+        18: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // PSEUDOELEMENT
+        19: S(fg: c ? Palette.lightProperty  : Palette.darkProperty),  // EXTENDED_IDENTIFIER
+        23: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // VARIABLE
+    ]
+}
+
+private func yamlStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENT
+        2: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // IDENTIFIER (keys)
+        3: S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),   // KEYWORD
+        4: S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // NUMBER
+        5: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator), // REFERENCE
+        6: S(fg: c ? Palette.lightTag       : Palette.darkTag),       // DOCUMENT
+        7: S(fg: c ? Palette.lightString    : Palette.darkString),    // TEXT
+        9: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // OPERATOR
+    ]
+}
+
+private func sqlStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment  : Palette.darkComment),   // COMMENT
+        2:  S(fg: c ? Palette.lightComment  : Palette.darkComment),   // COMMENTLINE
+        3:  S(fg: c ? Palette.lightComment  : Palette.darkComment),   // COMMENTDOC
+        4:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),    // NUMBER
+        5:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true), // WORD
+        6:  S(fg: c ? Palette.lightString   : Palette.darkString),    // STRING
+        7:  S(fg: c ? Palette.lightString   : Palette.darkString),    // CHARACTER
+        10: S(fg: c ? Palette.lightOperator : Palette.darkOperator),  // OPERATOR
+        11: S(fg: c ? Palette.lightVariable : Palette.darkVariable),  // IDENTIFIER
+        16: S(fg: c ? Palette.lightType     : Palette.darkType),      // WORD2
+    ]
+}
+
+private func bashStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        2:  S(fg: c ? Palette.lightComment   : Palette.darkComment),  // COMMENTLINE
+        3:  S(fg: c ? Palette.lightNumber    : Palette.darkNumber),   // NUMBER
+        4:  S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),  // WORD
+        5:  S(fg: c ? Palette.lightString    : Palette.darkString),   // STRING
+        6:  S(fg: c ? Palette.lightString    : Palette.darkString),   // CHARACTER
+        7:  S(fg: c ? Palette.lightOperator  : Palette.darkOperator), // OPERATOR
+        8:  S(fg: c ? Palette.lightVariable  : Palette.darkVariable), // IDENTIFIER
+        9:  S(fg: c ? Palette.lightDecorator : Palette.darkDecorator),// SCALAR ($var)
+        10: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator),// PARAM
+        11: S(fg: c ? Palette.lightString    : Palette.darkString),   // BACKTICKS
+    ]
+}
+
+private func rubyStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        2:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENTLINE
+        3:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // POD
+        4:  S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // NUMBER
+        5:  S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),   // WORD
+        6:  S(fg: c ? Palette.lightString    : Palette.darkString),    // STRING
+        7:  S(fg: c ? Palette.lightString    : Palette.darkString),    // CHARACTER
+        8:  S(fg: c ? Palette.lightType      : Palette.darkType, bold: true), // CLASSNAME
+        9:  S(fg: c ? Palette.lightFunction  : Palette.darkFunction),  // DEFNAME
+        10: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // OPERATOR
+        11: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // IDENTIFIER
+        12: S(fg: c ? Palette.lightRegex     : Palette.darkRegex),     // REGEX
+        13: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator), // GLOBAL ($)
+        14: S(fg: c ? Palette.lightProperty  : Palette.darkProperty),  // SYMBOL (:foo)
+        15: S(fg: c ? Palette.lightType      : Palette.darkType),      // MODULE_NAME
+        16: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator), // INSTANCE_VAR (@)
+        17: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator), // CLASS_VAR (@@)
+    ]
+}
+
+private func luaStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENT
+        2:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENTLINE
+        3:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENTDOC
+        4:  S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // NUMBER
+        5:  S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),   // WORD
+        6:  S(fg: c ? Palette.lightString    : Palette.darkString),    // STRING
+        7:  S(fg: c ? Palette.lightString    : Palette.darkString),    // CHARACTER
+        8:  S(fg: c ? Palette.lightString    : Palette.darkString),    // LITERALSTRING
+        10: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // OPERATOR
+        11: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // IDENTIFIER
+    ]
+}
+
+// PHP — Lexilla's "phpscript" runs the HPHP states (118+) primarily.
+private func phpStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    var s = htmlStyles(mode)
+    // HPHP_* token states for the PHP code regions
+    s[118] = S(fg: c ? Palette.lightOperator  : Palette.darkOperator)   // DEFAULT
+    s[119] = S(fg: c ? Palette.lightString    : Palette.darkString)     // HSTRING
+    s[120] = S(fg: c ? Palette.lightString    : Palette.darkString)     // SIMPLESTRING
+    s[121] = S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword)    // WORD
+    s[122] = S(fg: c ? Palette.lightNumber    : Palette.darkNumber)     // NUMBER
+    s[123] = S(fg: c ? Palette.lightDecorator : Palette.darkDecorator)  // VARIABLE ($x)
+    s[124] = S(fg: c ? Palette.lightComment   : Palette.darkComment)    // COMMENT
+    s[125] = S(fg: c ? Palette.lightComment   : Palette.darkComment)    // COMMENTLINE
+    s[126] = S(fg: c ? Palette.lightDecorator : Palette.darkDecorator)  // HSTRING_VARIABLE
+    s[127] = S(fg: c ? Palette.lightOperator  : Palette.darkOperator)   // OPERATOR
+    return s
+}
+
+private func propsStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment   : Palette.darkComment),  // COMMENT
+        2: S(fg: c ? Palette.lightTag       : Palette.darkTag, bold: true), // SECTION [foo]
+        3: S(fg: c ? Palette.lightOperator  : Palette.darkOperator), // ASSIGNMENT (=)
+        4: S(fg: c ? Palette.lightString    : Palette.darkString),   // DEFVAL
+        5: S(fg: c ? Palette.lightProperty  : Palette.darkProperty), // KEY
+    ]
+}
+
+private func tomlStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment   : Palette.darkComment),   // COMMENT
+        2:  S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // IDENTIFIER
+        3:  S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),   // KEYWORD
+        4:  S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // NUMBER
+        5:  S(fg: c ? Palette.lightTag       : Palette.darkTag, bold: true), // TABLE [name]
+        6:  S(fg: c ? Palette.lightProperty  : Palette.darkProperty),  // KEY
+        8:  S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // OPERATOR
+        9:  S(fg: c ? Palette.lightString    : Palette.darkString),    // STRING_SQ
+        10: S(fg: c ? Palette.lightString    : Palette.darkString),    // STRING_DQ
+        11: S(fg: c ? Palette.lightString    : Palette.darkString),    // TRIPLE_STRING_SQ
+        12: S(fg: c ? Palette.lightString    : Palette.darkString),    // TRIPLE_STRING_DQ
+        13: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator), // ESCAPECHAR
+        14: S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // DATETIME
+    ]
+}
+
+private func markdownStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    let h = c ? Palette.lightHeading : Palette.darkHeading
+    return [
+        2:  S(fg: c ? Palette.lightTag      : Palette.darkTag, bold: true),    // STRONG1
+        3:  S(fg: c ? Palette.lightTag      : Palette.darkTag, bold: true),    // STRONG2
+        4:  S(fg: c ? Palette.lightFunction : Palette.darkFunction),           // EM1
+        5:  S(fg: c ? Palette.lightFunction : Palette.darkFunction),           // EM2
+        6:  S(fg: h, bold: true),  // HEADER1
+        7:  S(fg: h, bold: true),  // HEADER2
+        8:  S(fg: h, bold: true),  // HEADER3
+        9:  S(fg: h, bold: true),  // HEADER4
+        10: S(fg: h, bold: true),  // HEADER5
+        11: S(fg: h, bold: true),  // HEADER6
+        13: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),            // ULIST_ITEM
+        14: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),            // OLIST_ITEM
+        15: S(fg: c ? Palette.lightComment  : Palette.darkComment),            // BLOCKQUOTE
+        18: S(fg: c ? Palette.lightLink     : Palette.darkLink),               // LINK
+        19: S(fg: c ? Palette.lightString   : Palette.darkString),             // CODE `inline`
+        20: S(fg: c ? Palette.lightString   : Palette.darkString),             // CODE2
+        21: S(fg: c ? Palette.lightString   : Palette.darkString),             // CODEBK (fenced)
+    ]
+}
+
+private func makefileStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment   : Palette.darkComment),  // COMMENT
+        2: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator),// PREPROCESSOR
+        3: S(fg: c ? Palette.lightVariable  : Palette.darkVariable), // IDENTIFIER ($(VAR))
+        4: S(fg: c ? Palette.lightOperator  : Palette.darkOperator), // OPERATOR
+        5: S(fg: c ? Palette.lightFunction  : Palette.darkFunction, bold: true), // TARGET
+    ]
+}
+
+private func diffStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment  : Palette.darkComment),   // COMMENT
+        2: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),   // COMMAND
+        3: S(fg: c ? Palette.lightTag      : Palette.darkTag),       // HEADER
+        4: S(fg: c ? Palette.lightOperator : Palette.darkOperator),  // POSITION
+        5: S(fg: NSColor.hex(c ? 0xA31515 : 0xCE9178)),              // DELETED
+        6: S(fg: NSColor.hex(c ? 0x098658 : 0xB5CEA8)),              // ADDED
+        7: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator), // CHANGED
+    ]
+}
+
+// MARK: - Public lookup
+
+public enum SchemeLibrary {
     public static func scheme(for lexer: String?, mode: ThemeMode) -> ColorScheme {
-        switch (lexer, mode) {
-        case ("cpp", .light):    return cppLight
-        case ("cpp", .dark):     return cppDark
-        case ("python", .light): return pythonLight
-        case ("python", .dark):  return pythonDark
-        case ("json", .light):   return jsonLight
-        case ("json", .dark):    return jsonDark
-        default:
-            // Fallback: just neutral fg/bg, no per-token coloring.
-            return mode == .dark ? genericDark : genericLight
+        let key = lexer ?? ""
+        switch key {
+        case "cpp":         return wrap(cppStyles(mode),      mode)
+        case "python":      return wrap(pythonStyles(mode),   mode)
+        case "json":        return wrap(jsonStyles(mode),     mode)
+        case "hypertext",
+             "xml":         return wrap(htmlStyles(mode),     mode)
+        case "css":         return wrap(cssStyles(mode),      mode)
+        case "yaml":        return wrap(yamlStyles(mode),     mode)
+        case "sql",
+             "mssql":       return wrap(sqlStyles(mode),      mode)
+        case "bash":        return wrap(bashStyles(mode),     mode)
+        case "ruby":        return wrap(rubyStyles(mode),     mode)
+        case "lua":         return wrap(luaStyles(mode),      mode)
+        case "phpscript":   return wrap(phpStyles(mode),      mode)
+        case "props":       return wrap(propsStyles(mode),    mode)
+        case "toml":        return wrap(tomlStyles(mode),     mode)
+        case "markdown":    return wrap(markdownStyles(mode), mode)
+        case "makefile":    return wrap(makefileStyles(mode), mode)
+        case "diff":        return wrap(diffStyles(mode),     mode)
+        default:            return wrap([:],                   mode)  // fallback: just bg/fg
         }
     }
-
-    // MARK: cpp family (covers C, C++, Java, Swift, Go, JS, TS, C#, Kotlin, Rust, etc.)
-
-    static let cppLight: ColorScheme = {
-        var s: [Int: ColorScheme.StyleAttrs] = [:]
-        s[SCE.cComment]      = .init(fg: .hex(0x008000))
-        s[SCE.cCommentLine]  = .init(fg: .hex(0x008000))
-        s[SCE.cCommentDoc]   = .init(fg: .hex(0x008000))
-        s[SCE.cCommentLineDoc] = .init(fg: .hex(0x008000))
-        s[SCE.cCommentDocKeyword] = .init(fg: .hex(0x008000), bold: true)
-        s[SCE.cNumber]       = .init(fg: .hex(0x098658))
-        s[SCE.cWord]         = .init(fg: .hex(0x0000FF), bold: false)  // keywords
-        s[SCE.cWord2]        = .init(fg: .hex(0x267F99))               // secondary
-        s[SCE.cString]       = .init(fg: .hex(0xA31515))
-        s[SCE.cCharacter]    = .init(fg: .hex(0xA31515))
-        s[SCE.cVerbatim]     = .init(fg: .hex(0xA31515))
-        s[SCE.cRegex]        = .init(fg: .hex(0x811F3F))
-        s[SCE.cPreprocessor] = .init(fg: .hex(0x808080))
-        s[SCE.cOperator]     = .init(fg: .hex(0x000000))
-        s[SCE.cIdentifier]   = .init(fg: .hex(0x001080))
-        return .init(
-            defaultFg: .hex(0x000000),
-            defaultBg: .hex(0xFFFFFF),
-            lineNumberFg: .hex(0x237893),
-            lineNumberBg: .hex(0xFFFFFF),
-            styles: s
-        )
-    }()
-
-    static let cppDark: ColorScheme = {
-        var s: [Int: ColorScheme.StyleAttrs] = [:]
-        s[SCE.cComment]      = .init(fg: .hex(0x6A9955))
-        s[SCE.cCommentLine]  = .init(fg: .hex(0x6A9955))
-        s[SCE.cCommentDoc]   = .init(fg: .hex(0x6A9955))
-        s[SCE.cCommentLineDoc] = .init(fg: .hex(0x6A9955))
-        s[SCE.cCommentDocKeyword] = .init(fg: .hex(0x6A9955), bold: true)
-        s[SCE.cNumber]       = .init(fg: .hex(0xB5CEA8))
-        s[SCE.cWord]         = .init(fg: .hex(0x569CD6))
-        s[SCE.cWord2]        = .init(fg: .hex(0x4EC9B0))
-        s[SCE.cString]       = .init(fg: .hex(0xCE9178))
-        s[SCE.cCharacter]    = .init(fg: .hex(0xCE9178))
-        s[SCE.cVerbatim]     = .init(fg: .hex(0xCE9178))
-        s[SCE.cRegex]        = .init(fg: .hex(0xD16969))
-        s[SCE.cPreprocessor] = .init(fg: .hex(0x808080))
-        s[SCE.cOperator]     = .init(fg: .hex(0xD4D4D4))
-        s[SCE.cIdentifier]   = .init(fg: .hex(0x9CDCFE))
-        return .init(
-            defaultFg: .hex(0xD4D4D4),
-            defaultBg: .hex(0x1E1E1E),
-            lineNumberFg: .hex(0x858585),
-            lineNumberBg: .hex(0x1E1E1E),
-            styles: s
-        )
-    }()
-
-    // MARK: python
-
-    static let pythonLight: ColorScheme = {
-        var s: [Int: ColorScheme.StyleAttrs] = [:]
-        s[SCE.pyCommentLine] = .init(fg: .hex(0x008000))
-        s[SCE.pyCommentBlock] = .init(fg: .hex(0x008000))
-        s[SCE.pyNumber]      = .init(fg: .hex(0x098658))
-        s[SCE.pyString]      = .init(fg: .hex(0xA31515))
-        s[SCE.pyCharacter]   = .init(fg: .hex(0xA31515))
-        s[SCE.pyTriple]      = .init(fg: .hex(0xA31515))
-        s[SCE.pyTripleDouble] = .init(fg: .hex(0xA31515))
-        s[SCE.pyWord]        = .init(fg: .hex(0x0000FF))
-        s[SCE.pyWord2]       = .init(fg: .hex(0x267F99))
-        s[SCE.pyClassName]   = .init(fg: .hex(0x267F99), bold: true)
-        s[SCE.pyFuncName]    = .init(fg: .hex(0x795E26))
-        s[SCE.pyOperator]    = .init(fg: .hex(0x000000))
-        s[SCE.pyIdentifier]  = .init(fg: .hex(0x001080))
-        s[SCE.pyDecorator]   = .init(fg: .hex(0xAF00DB))
-        return .init(
-            defaultFg: .hex(0x000000),
-            defaultBg: .hex(0xFFFFFF),
-            lineNumberFg: .hex(0x237893),
-            lineNumberBg: .hex(0xFFFFFF),
-            styles: s
-        )
-    }()
-
-    static let pythonDark: ColorScheme = {
-        var s: [Int: ColorScheme.StyleAttrs] = [:]
-        s[SCE.pyCommentLine] = .init(fg: .hex(0x6A9955))
-        s[SCE.pyCommentBlock] = .init(fg: .hex(0x6A9955))
-        s[SCE.pyNumber]      = .init(fg: .hex(0xB5CEA8))
-        s[SCE.pyString]      = .init(fg: .hex(0xCE9178))
-        s[SCE.pyCharacter]   = .init(fg: .hex(0xCE9178))
-        s[SCE.pyTriple]      = .init(fg: .hex(0xCE9178))
-        s[SCE.pyTripleDouble] = .init(fg: .hex(0xCE9178))
-        s[SCE.pyWord]        = .init(fg: .hex(0x569CD6))
-        s[SCE.pyWord2]       = .init(fg: .hex(0x4EC9B0))
-        s[SCE.pyClassName]   = .init(fg: .hex(0x4EC9B0), bold: true)
-        s[SCE.pyFuncName]    = .init(fg: .hex(0xDCDCAA))
-        s[SCE.pyOperator]    = .init(fg: .hex(0xD4D4D4))
-        s[SCE.pyIdentifier]  = .init(fg: .hex(0x9CDCFE))
-        s[SCE.pyDecorator]   = .init(fg: .hex(0xC586C0))
-        return .init(
-            defaultFg: .hex(0xD4D4D4),
-            defaultBg: .hex(0x1E1E1E),
-            lineNumberFg: .hex(0x858585),
-            lineNumberBg: .hex(0x1E1E1E),
-            styles: s
-        )
-    }()
-
-    // MARK: json
-
-    static let jsonLight: ColorScheme = {
-        var s: [Int: ColorScheme.StyleAttrs] = [:]
-        s[SCE.jsonNumber]       = .init(fg: .hex(0x098658))
-        s[SCE.jsonString]       = .init(fg: .hex(0xA31515))
-        s[SCE.jsonPropertyName] = .init(fg: .hex(0x0451A5))
-        s[SCE.jsonOperator]     = .init(fg: .hex(0x000000))
-        s[SCE.jsonKeyword]      = .init(fg: .hex(0x0000FF))
-        s[SCE.jsonEscape]       = .init(fg: .hex(0xEE0000))
-        s[SCE.jsonError]        = .init(fg: .hex(0xFFFFFF), bg: .hex(0xCC0000))
-        return .init(
-            defaultFg: .hex(0x000000),
-            defaultBg: .hex(0xFFFFFF),
-            lineNumberFg: .hex(0x237893),
-            lineNumberBg: .hex(0xFFFFFF),
-            styles: s
-        )
-    }()
-
-    static let jsonDark: ColorScheme = {
-        var s: [Int: ColorScheme.StyleAttrs] = [:]
-        s[SCE.jsonNumber]       = .init(fg: .hex(0xB5CEA8))
-        s[SCE.jsonString]       = .init(fg: .hex(0xCE9178))
-        s[SCE.jsonPropertyName] = .init(fg: .hex(0x9CDCFE))
-        s[SCE.jsonOperator]     = .init(fg: .hex(0xD4D4D4))
-        s[SCE.jsonKeyword]      = .init(fg: .hex(0x569CD6))
-        s[SCE.jsonEscape]       = .init(fg: .hex(0xD7BA7D))
-        s[SCE.jsonError]        = .init(fg: .hex(0xFFFFFF), bg: .hex(0x800000))
-        return .init(
-            defaultFg: .hex(0xD4D4D4),
-            defaultBg: .hex(0x1E1E1E),
-            lineNumberFg: .hex(0x858585),
-            lineNumberBg: .hex(0x1E1E1E),
-            styles: s
-        )
-    }()
-
-    // MARK: generic fallback
-
-    static let genericLight = ColorScheme(
-        defaultFg: .hex(0x000000),
-        defaultBg: .hex(0xFFFFFF),
-        lineNumberFg: .hex(0x237893),
-        lineNumberBg: .hex(0xFFFFFF),
-        styles: [:]
-    )
-
-    static let genericDark = ColorScheme(
-        defaultFg: .hex(0xD4D4D4),
-        defaultBg: .hex(0x1E1E1E),
-        lineNumberFg: .hex(0x858585),
-        lineNumberBg: .hex(0x1E1E1E),
-        styles: [:]
-    )
 }
