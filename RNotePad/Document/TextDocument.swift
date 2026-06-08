@@ -3,6 +3,7 @@
 
 import AppKit
 
+@objc(RNPTextDocument)
 public final class TextDocument: NSDocument {
 
     /// In-memory contents. Set from disk via read(from:ofType:) and from the

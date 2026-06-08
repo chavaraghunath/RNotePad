@@ -6,20 +6,26 @@ import AppKit
 public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
-        // Native macOS multi-window tabs.
         NSWindow.allowsAutomaticWindowTabbing = true
-
-        // Build the menu bar before showing any windows.
         NSApp.mainMenu = MainMenu.build()
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Open + show an untitled document on launch. We do this explicitly
+        // rather than relying on applicationShouldOpenUntitledFile, because:
+        //   (a) some launch paths (e.g. running the binary directly) skip it
+        //   (b) the default NSDocument display path doesn't reliably bring
+        //       our programmatic window controller to the front.
+        DispatchQueue.main.async {
+            guard let doc = try? NSDocumentController.shared.openUntitledDocumentAndDisplay(true) else { return }
+            for wc in doc.windowControllers {
+                wc.showWindow(nil)
+                wc.window?.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     public func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        return true
-    }
-
-    public func applicationOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        NSDocumentController.shared.newDocument(nil)
-        return true
+        return false  // Handled explicitly in applicationDidFinishLaunching above.
     }
 
     public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -3,40 +3,27 @@
 
 import AppKit
 
-public final class EditorWindowController: NSWindowController {
+public final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
     public let editorViewController: EditorViewController
 
     public init(document: TextDocument) {
-        let frame = NSRect(x: 0, y: 0, width: 960, height: 640)
-        let window = NSWindow(
-            contentRect: frame,
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .unifiedTitleAndToolbar],
-            backing: .buffered,
-            defer: false
-        )
-        window.tabbingMode = .preferred
-        window.center()
-        window.setFrameAutosaveName("RNotePadMainWindow")
-
         let vc = EditorViewController(document: document)
         self.editorViewController = vc
 
+        let window = NSWindow(contentViewController: vc)
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 960, height: 640))
+        window.title = "RNotePad"
+        window.tabbingMode = .preferred
+        window.setFrameAutosaveName("RNotePadMainWindow")
+        window.center()
+
         super.init(window: window)
-        window.contentViewController = vc
         window.delegate = self
-        self.document = document
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) not used")
     }
-
-    public override func windowDidLoad() {
-        super.windowDidLoad()
-    }
-}
-
-extension EditorWindowController: NSWindowDelegate {
-    // Title automatically reflects document.displayName; nothing extra here for v0.
 }
