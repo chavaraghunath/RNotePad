@@ -181,6 +181,19 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
         // Enable hover-on-dwell — 500ms idle triggers SCN_DWELLSTART which
         // the notification dispatcher routes to hover lookup.
         SciSetMouseDwellTime(sciView, 500)
+        // Phase 9: pull document symbols and broadcast to the outline panel.
+        refreshDocumentSymbols()
+    }
+
+    private func refreshDocumentSymbols() {
+        guard let session = lspSession,
+              let doc = document, let url = doc.fileURL else { return }
+        session.requestDocumentSymbols { symbols in
+            NotificationCenter.default.post(
+                name: .sourcepadOutlineDidUpdate,
+                object: nil,
+                userInfo: ["url": url, "symbols": symbols])
+        }
     }
 
     private func lspSyncChange() {

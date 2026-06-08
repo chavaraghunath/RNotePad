@@ -173,6 +173,96 @@ public final class LSPDocumentSession: LSPServerManagerDelegate {
         return []
     }
 
+    // MARK: - Document symbols
+
+    public struct DocumentSymbol {
+        public let name: String
+        public let kind: String?
+        public let line: Int
+        public let column: Int
+        public let children: [DocumentSymbol]
+    }
+
+    /// Request the outline symbols for this document. Pyright/clangd
+    /// return a tree (DocumentSymbol[]); some servers return the flat
+    /// SymbolInformation[] form. We handle both.
+    public func requestDocumentSymbols(completion: @escaping ([DocumentSymbol]) -> Void) {
+        guard let client else { completion([]); return }
+        let params: [String: Any] = [
+            "textDocument": ["uri": documentURI],
+        ]
+        client.sendRequest(method: "textDocument/documentSymbol", params: params) { result in
+            switch result {
+            case .success(let payload):
+                completion(LSPDocumentSession.parseDocumentSymbols(payload))
+            case .failure:
+                completion([])
+            }
+        }
+    }
+
+    private static func parseDocumentSymbols(_ raw: Any?) -> [DocumentSymbol] {
+        guard let arr = raw as? [[String: Any]] else { return [] }
+        return arr.compactMap(parseOne)
+    }
+
+    private static func parseOne(_ d: [String: Any]) -> DocumentSymbol? {
+        let name: String
+        let line: Int
+        let column: Int
+        let kind: String?
+        let children: [DocumentSymbol]
+
+        // DocumentSymbol form (recursive).
+        if let n = d["name"] as? String,
+           let r = LSP.Range_(d["range"] ?? d["selectionRange"]) {
+            name = n
+            line = r.start.line
+            column = r.start.character
+            kind = kindName(d["kind"] as? Int)
+            if let kids = d["children"] as? [[String: Any]] {
+                children = kids.compactMap(parseOne)
+            } else {
+                children = []
+            }
+            return DocumentSymbol(name: name, kind: kind, line: line, column: column, children: children)
+        }
+        // SymbolInformation form (flat).
+        if let n = d["name"] as? String,
+           let loc = d["location"] as? [String: Any],
+           let r = LSP.Range_(loc["range"]) {
+            return DocumentSymbol(name: n,
+                                  kind: kindName(d["kind"] as? Int),
+                                  line: r.start.line,
+                                  column: r.start.character,
+                                  children: [])
+        }
+        return nil
+    }
+
+    private static func kindName(_ k: Int?) -> String? {
+        switch k ?? 0 {
+        case 1: return "file"
+        case 2: return "module"
+        case 3: return "namespace"
+        case 4: return "package"
+        case 5: return "class"
+        case 6: return "method"
+        case 7: return "property"
+        case 8: return "field"
+        case 9: return "constructor"
+        case 10: return "enum"
+        case 11: return "interface"
+        case 12: return "function"
+        case 13: return "variable"
+        case 14: return "constant"
+        case 22: return "struct"
+        case 23: return "event"
+        case 24: return "operator"
+        default: return nil
+        }
+    }
+
     // MARK: - Rename
 
     /// Returns a WorkspaceEdit-style raw dictionary; caller applies it.

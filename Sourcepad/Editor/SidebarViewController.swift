@@ -44,14 +44,17 @@ public final class SidebarViewController: NSViewController,
     // on every isItemExpandable / numberOfChildren call.
     private var childrenCache: [URL: [URL]] = [:]
 
+    private let outlinePanel = OutlineSidebarPanel()
+    private let tasksPanel   = TasksSidebarPanel()
+    private let panelContainer = NSView()
+
     public override func loadView() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 600))
         root.wantsLayer = true
         root.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
-        // Tab strip (initially only the Files tab; tab strip hides itself
-        // when there's only one tab so visible behavior matches Phase 1).
-        tabBar.tabs = [.files]
+        // Tab strip — Phase 9 ships Files + Outline + Tasks tabs.
+        tabBar.tabs = [.files, .outline, .tasks]
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         tabBar.onSelect = { [weak self] tab in
             self?.handleTabSelection(tab)
@@ -255,9 +258,57 @@ public final class SidebarViewController: NSViewController,
     // MARK: - Tab handling
 
     private func handleTabSelection(_ tab: SidebarTab) {
-        // Phase 2 ships only the Files tab; future phases swap content
-        // panels here based on the selected tab.
-        _ = tab
+        // Hide all known sub-panels then show the picked one.
+        outlinePanel.isHidden = true
+        tasksPanel.isHidden = true
+        // Files tab is the original outline + header + empty state, all
+        // already in the view hierarchy.
+        let showingFiles = (tab == .files)
+        scroll.isHidden = !(showingFiles && !workspace.roots.isEmpty)
+        header.isHidden = !(showingFiles && !workspace.roots.isEmpty)
+        emptyState.isHidden = !(showingFiles && workspace.roots.isEmpty)
+
+        switch tab {
+        case .files:
+            break  // handled above
+        case .outline:
+            ensurePanelHosted(outlinePanel)
+            outlinePanel.isHidden = false
+        case .tasks:
+            ensurePanelHosted(tasksPanel)
+            tasksPanel.isHidden = false
+            tasksPanel.refresh()
+        case .tags, .backlinks:
+            break  // wired in later phases
+        }
+    }
+
+    private func ensurePanelHosted(_ panel: NSView) {
+        guard panel.superview == nil else { return }
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(panel)
+        NSLayoutConstraint.activate([
+            panel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            panel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            panel.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            panel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        // Wire activations.
+        if let outline = panel as? OutlineSidebarPanel {
+            outline.onActivate = { [weak self] url, line in
+                self?.openFileAtLine(url: url, line: line)
+            }
+        } else if let tasks = panel as? TasksSidebarPanel {
+            tasks.onActivate = { [weak self] url, line in
+                self?.openFileAtLine(url: url, line: line)
+            }
+        }
+    }
+
+    private func openFileAtLine(url: URL, line: Int) {
+        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { doc, _, _ in
+            (doc as? TextDocument)?.primaryEditorViewController()?.editorPane?.goToLine(line)
+        }
     }
 
     // MARK: - View-state plumbing
