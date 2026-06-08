@@ -1,26 +1,26 @@
-# Contributing to RNotePad
+# Contributing to Rnotepad
 
 Thanks for your interest!
 
 ## Ground rules
 
-- **License**: RNotePad is MIT. By contributing, you agree your contribution is offered under MIT.
+- **License**: Rnotepad is MIT. By contributing, you agree your contribution is offered under MIT.
 - **No GPL code**: do not copy or closely translate code from GPL-licensed projects (including Notepad++). Reading them for *understanding* is fine; copying expression is not.
 - **Engine code is upstream**: `scintilla/`, `lexilla/`, and `boostregex/` are vendored from their upstreams. Don't make local edits except for build-config tweaks. Submit fixes to upstream instead.
 
 ## How to set up
 
 ```bash
-git clone https://github.com/chavaraghunath/RNotePad.git
-cd RNotePad
-./RNotePad/Build/build.sh
-open RNotePad/build/RNotePad.app
+git clone https://github.com/chavaraghunath/Rnotepad.git
+cd Rnotepad
+./Rnotepad/Build/build.sh
+open Rnotepad/build/Rnotepad.app
 ```
 
 ## Style
 
 - **Swift**: no global state. View controllers own their state. Use `final class` unless inheritance is needed.
-- **Obj-C++ bridge**: only `RNotePad/Bridge/SciTextView.{h,mm}` may include Scintilla C++ headers. Everything else stays Swift-pure.
+- **Obj-C++ bridge**: only `Rnotepad/Bridge/SciTextView.{h,mm}` may include Scintilla C++ headers. Everything else stays Swift-pure.
 - **No silent failures**: if something can't be done, throw or surface a user-visible error.
 - **Tests**: not required for v0; will be required when we add the test target in a later phase.
 

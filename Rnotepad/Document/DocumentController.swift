@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// RNotePad — custom NSDocumentController to intercept file opens.
+// Rnotepad — custom NSDocumentController to intercept file opens.
 //
 // AppKit's default 'odoc' Apple Event handler routes straight to
 // NSDocumentController.openDocument(withContentsOf:display:completionHandler:),

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// RNotePad — transparent overlay that catches file-URL drops above the
+// Rnotepad — transparent overlay that catches file-URL drops above the
 // Scintilla editor view. Scintilla's NSView consumes drag events for plain
 // text DnD; we only want to override file-URL drops so the rest of Scintilla's
 // drag handling still works.

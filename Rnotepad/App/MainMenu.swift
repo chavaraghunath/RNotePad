@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// RNotePad — programmatic main menu (no .xib).
+// Rnotepad — programmatic main menu (no .xib).
 
 import AppKit
 
@@ -8,17 +8,17 @@ public enum MainMenu {
     public static func build() -> NSMenu {
         let menubar = NSMenu()
 
-        // MARK: RNotePad menu
+        // MARK: Rnotepad menu
         let appItem = NSMenuItem()
         menubar.addItem(appItem)
         let appMenu = NSMenu()
         appItem.submenu = appMenu
 
-        appMenu.addItem(withTitle: "About RNotePad",
+        appMenu.addItem(withTitle: "About Rnotepad",
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide RNotePad",
+        appMenu.addItem(withTitle: "Hide Rnotepad",
                         action: #selector(NSApplication.hide(_:)),
                         keyEquivalent: "h")
         let hideOthers = NSMenuItem(title: "Hide Others",
@@ -30,7 +30,7 @@ public enum MainMenu {
                         action: #selector(NSApplication.unhideAllApplications(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit RNotePad",
+        appMenu.addItem(withTitle: "Quit Rnotepad",
                         action: #selector(NSApplication.terminate(_:)),
                         keyEquivalent: "q")
 

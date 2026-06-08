@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// RNotePad — NSDocument backing a single text file.
+// Rnotepad — NSDocument backing a single text file.
 
 import AppKit
 

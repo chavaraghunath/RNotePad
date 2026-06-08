@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// RNotePad — Obj-C++ implementation. The only file that includes Scintilla's
+// Rnotepad — Obj-C++ implementation. The only file that includes Scintilla's
 // C++-leaky headers. Swift never sees these.
 
 #import "SciTextView.h"
@@ -56,12 +56,12 @@ static Lexilla::CreateLexerFn LoadCreateLexer() {
             if (dl) break;
         }
         if (!dl) {
-            NSLog(@"[RNotePad] dlopen liblexilla failed: %s", dlerror());
+            NSLog(@"[Rnotepad] dlopen liblexilla failed: %s", dlerror());
             return;
         }
         fn = reinterpret_cast<Lexilla::CreateLexerFn>(dlsym(dl, LEXILLA_CREATELEXER));
         if (!fn) {
-            NSLog(@"[RNotePad] dlsym CreateLexer failed: %s", dlerror());
+            NSLog(@"[Rnotepad] dlsym CreateLexer failed: %s", dlerror());
         }
     });
     return fn;
@@ -79,7 +79,7 @@ BOOL SciApplyLexer(NSView *view, NSString *lexerName) {
     if (!create) return NO;
     Scintilla::ILexer5 *lexer = create([lexerName UTF8String]);
     if (!lexer) {
-        NSLog(@"[RNotePad] CreateLexer(\"%@\") returned null", lexerName);
+        NSLog(@"[Rnotepad] CreateLexer(\"%@\") returned null", lexerName);
         return NO;
     }
     [v setReferenceProperty:SCI_SETILEXER parameter:0 value:lexer];

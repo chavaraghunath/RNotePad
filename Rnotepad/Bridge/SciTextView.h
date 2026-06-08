@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// RNotePad — Obj-C façade over Scintilla's ScintillaView. Plain Obj-C only;
+// Rnotepad — Obj-C façade over Scintilla's ScintillaView. Plain Obj-C only;
 // Swift sees this header but never the C++ guts underneath.
 
 #import <Cocoa/Cocoa.h>

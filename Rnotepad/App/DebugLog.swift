@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// RNotePad — file-based logger so we can debug regardless of stderr routing.
+// Rnotepad — file-based logger so we can debug regardless of stderr routing.
 // Writes to /tmp/rnotepad.log. Each line is timestamped. Append mode.
 
 import Foundation

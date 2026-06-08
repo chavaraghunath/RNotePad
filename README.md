@@ -1,4 +1,4 @@
-# RNotePad
+# Rnotepad
 
 Native macOS code editor. Scintilla engine, AppKit/Swift shell. MIT.
 
@@ -21,11 +21,11 @@ Phase 0 + Phase 1 vertical slice — usable as a daily-driver text editor for ~1
 Requires Xcode 16+ (or any Xcode that ships an arm64 macOS SDK).
 
 ```bash
-./RNotePad/Build/build.sh
-open RNotePad/build/RNotePad.app
+./Rnotepad/Build/build.sh
+open Rnotepad/build/Rnotepad.app
 ```
 
-The script builds Scintilla + Lexilla via `xcodebuild`, compiles the Obj-C++ bridge with `clang++`, compiles Swift sources with `swiftc`, then assembles a code-signed (ad-hoc) `.app` bundle in `RNotePad/build/`.
+The script builds Scintilla + Lexilla via `xcodebuild`, compiles the Obj-C++ bridge with `clang++`, compiles Swift sources with `swiftc`, then assembles a code-signed (ad-hoc) `.app` bundle in `Rnotepad/build/`.
 
 ## Architecture
 
@@ -34,14 +34,14 @@ The script builds Scintilla + Lexilla via `xcodebuild`, compiles the Obj-C++ bri
 | Editor engine | [Scintilla](https://www.scintilla.org/) (vendored at `scintilla/`) |
 | Syntax highlighting | [Lexilla](https://www.scintilla.org/Lexilla.html) (vendored at `lexilla/`) |
 | Regex backend | Boost.Regex (vendored at `boostregex/`) |
-| App shell | AppKit + Swift (`RNotePad/`) |
-| Swift ↔ Scintilla bridge | Obj-C++ shim (`RNotePad/Bridge/`) |
+| App shell | AppKit + Swift (`Rnotepad/`) |
+| Swift ↔ Scintilla bridge | Obj-C++ shim (`Rnotepad/Bridge/`) |
 
-The editor engine is the same one that powers Notepad++ on Windows. It's been cross-platform from day one — Scintilla ships a Cocoa backend (`scintilla/cocoa/`). RNotePad reuses that, and writes everything else fresh under MIT.
+The editor engine is the same one that powers Notepad++ on Windows. It's been cross-platform from day one — Scintilla ships a Cocoa backend (`scintilla/cocoa/`). Rnotepad reuses that, and writes everything else fresh under MIT.
 
 ## License
 
-[MIT](LICENSE). Vendored Scintilla/Lexilla/Boost.Regex keep their own permissive licenses (all MIT-compatible). RNotePad does **not** derive from Notepad++'s GPL-licensed code.
+[MIT](LICENSE). Vendored Scintilla/Lexilla/Boost.Regex keep their own permissive licenses (all MIT-compatible). Rnotepad does **not** derive from Notepad++'s GPL-licensed code.
 
 ## Contributing
 

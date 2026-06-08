@@ -22,7 +22,7 @@ SOFTWARE.
 
 ---
 
-RNotePad embeds the following third-party components, each under its own license:
+Rnotepad embeds the following third-party components, each under its own license:
 
 - Scintilla (scintilla/) — HPND license. See scintilla/License.txt.
 - Lexilla (lexilla/) — HPND license. See lexilla/License.txt.
