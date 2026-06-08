@@ -151,6 +151,11 @@ SWIFT_SRCS=(
     "$APP_DIR/LSP/LSPDocumentSession.swift"
     "$APP_DIR/LSP/LSPReferencesWindowController.swift"
     "$APP_DIR/LSP/LSPWorkspaceEdit.swift"
+    "$APP_DIR/AI/AIService.swift"
+    "$APP_DIR/AI/ModelManager.swift"
+    "$APP_DIR/AI/GhostText.swift"
+    "$APP_DIR/AI/RewriteSheet.swift"
+    "$APP_DIR/AI/AIAuxiliaries.swift"
 )
 
 swiftc "${SWIFT_SRCS[@]}" \

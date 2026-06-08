@@ -153,6 +153,38 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: "Sourcepad.indexerMaxFileSize"); notify() }
     }
 
+    // MARK: - AI (Phase 10+)
+
+    public var aiEnabled: Bool {
+        get { defaults.bool(forKey: "Sourcepad.aiEnabled") }
+        set { defaults.set(newValue, forKey: "Sourcepad.aiEnabled"); notify() }
+    }
+
+    public var aiModelID: String? {
+        get { defaults.string(forKey: "Sourcepad.aiModelID") }
+        set {
+            if let v = newValue { defaults.set(v, forKey: "Sourcepad.aiModelID") }
+            else                 { defaults.removeObject(forKey: "Sourcepad.aiModelID") }
+            notify()
+        }
+    }
+
+    public var aiInlineCompleteEnabled: Bool {
+        get { defaults.object(forKey: "Sourcepad.aiInlineCompleteEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "Sourcepad.aiInlineCompleteEnabled"); notify() }
+    }
+
+    /// Number of leading + trailing context lines included in inline-
+    /// completion prompts. Default chosen empirically; larger = better
+    /// suggestions but slower.
+    public var aiContextLines: Int {
+        get {
+            let v = defaults.integer(forKey: "Sourcepad.aiContextLines")
+            return v > 0 ? v : 40
+        }
+        set { defaults.set(max(1, newValue), forKey: "Sourcepad.aiContextLines"); notify() }
+    }
+
     private func notify() {
         NotificationCenter.default.post(name: .sourcepadPreferencesChanged, object: self)
     }

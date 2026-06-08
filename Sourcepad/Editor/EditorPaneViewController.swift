@@ -160,6 +160,96 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
         setupLSP(for: lexerName, source: doc.contents)
     }
 
+    // MARK: - AI ghost text (Phase 11)
+
+    public let ghostText = GhostText()
+
+    private func charAddedForAI(codePoint: Int, position: Int) {
+        // Skip on non-printable code points (newline, tab, etc.)
+        guard codePoint >= 0x20 else { ghostText.dismiss(); return }
+        let buf = SciGetText(sciView)
+        // Convert UTF-16-ish position to a clamped int for substring slicing.
+        // We rely on byte positions throughout; convert to String index.
+        let bytePos = position
+        let utf8 = buf.utf8
+        guard bytePos <= utf8.count else { return }
+        let prefixUTF8 = utf8.prefix(bytePos)
+        let suffixUTF8 = utf8.dropFirst(bytePos)
+        let prefix = String(decoding: Array(prefixUTF8), as: UTF8.self).suffix(2000)
+        let suffix = String(decoding: Array(suffixUTF8), as: UTF8.self).prefix(500)
+        ghostText.pane = self
+        ghostText.scheduleAfterCharAdded(caretByte: bytePos,
+                                         prefix: String(prefix),
+                                         suffix: String(suffix))
+    }
+
+    @objc public func sourcepadAcceptGhostText(_ sender: Any?) {
+        if !ghostText.acceptIfAvailable() { NSSound.beep() }
+    }
+
+    @objc public func sourcepadRewriteSelection(_ sender: Any?) {
+        guard MLXService.shared.isAvailable else {
+            NSSound.beep()
+            return
+        }
+        RewriteSheet.shared.present(editor: self)
+    }
+
+    @objc public func sourcepadExplainSelection(_ sender: Any?) {
+        let sel = SciGetSelectionBytes(sciView)
+        guard sel.length > 0 else { NSSound.beep(); return }
+        let text = SciGetText(sciView)
+        let bytes = Array(text.utf8)
+        guard sel.location + sel.length <= bytes.count else { return }
+        let snippet = String(decoding: bytes[sel.location..<sel.location+sel.length], as: UTF8.self)
+        AIAuxiliaries.explainSelection(text: snippet) { [weak self] explanation in
+            guard let self, let explanation else { return }
+            LSPHoverPopover.shared.show(markdown: explanation,
+                                        anchoredTo: self.sciView,
+                                        atCaretByte: sel.location)
+        }
+    }
+
+    @objc public func sourcepadAICommit(_ sender: Any?) {
+        AIAuxiliaries.generateCommitMessage { message in
+            guard let message else { NSSound.beep(); return }
+            let alert = NSAlert()
+            alert.messageText = "AI Commit Message"
+            let tv = NSTextView(frame: NSRect(x: 0, y: 0, width: 480, height: 200))
+            tv.string = message
+            tv.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+            let scroll = NSScrollView(frame: tv.frame)
+            scroll.documentView = tv
+            scroll.hasVerticalScroller = true
+            scroll.borderType = .bezelBorder
+            alert.accessoryView = scroll
+            alert.addButton(withTitle: "Copy")
+            alert.addButton(withTitle: "Close")
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(tv.string, forType: .string)
+            }
+        }
+    }
+
+    @objc public func sourcepadGenerateTest(_ sender: Any?) {
+        let sel = SciGetSelectionBytes(sciView)
+        let text = SciGetText(sciView)
+        let snippet: String
+        if sel.length > 0 {
+            let bytes = Array(text.utf8)
+            snippet = String(decoding: bytes[sel.location..<sel.location+sel.length], as: UTF8.self)
+        } else {
+            snippet = text
+        }
+        AIAuxiliaries.generateTestStub(for: snippet, language: currentLexer) { result in
+            guard let result else { NSSound.beep(); return }
+            // Open a new untitled document with the test stub.
+            let doc = (try? NSDocumentController.shared.openUntitledDocumentAndDisplay(true)) as? TextDocument
+            doc?.primaryEditorViewController()?.editorPane?.replaceWholeBuffer(with: result)
+        }
+    }
+
     // MARK: - LSP wiring (Phase 6)
 
     private var lspSession: LSPDocumentSession?
@@ -527,6 +617,12 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
                     AutoComplete.update(in: self.sciView, lexer: self.currentLexer)
                 }
                 NotificationCenter.default.post(name: .sourcepadEditorUIDidUpdate, object: self)
+            case .charAdded:
+                // AI ghost text trigger.
+                if let cp = (detail?[SciDetailCodePoint] as? NSNumber)?.intValue,
+                   let pos = (detail?[SciDetailPosition] as? NSNumber)?.intValue {
+                    self.charAddedForAI(codePoint: cp, position: pos)
+                }
             case .dwellStart:
                 // LSP hover-on-dwell — only fires if a session is active.
                 if let session = self.lspSession,
@@ -540,8 +636,7 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
                 }
             case .dwellEnd:
                 LSPHoverPopover.shared.dismiss()
-            case .charAdded,
-                 .zoom,
+            case .zoom,
                  .autoCSelection,
                  .indicatorClick, .indicatorRelease,
                  .marginClick,        // handled via SciSetMarginClickHandler

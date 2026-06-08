@@ -282,6 +282,40 @@ public enum MainMenu {
         cmdPalette.keyEquivalentModifierMask = [.command, .shift]
         editMenu.addItem(cmdPalette)
 
+        // MARK: AI menu (Phase 10–13)
+        let aiItem = NSMenuItem()
+        menubar.addItem(aiItem)
+        let aiMenu = NSMenu(title: "AI")
+        aiItem.submenu = aiMenu
+        aiMenu.addItem(withTitle: "Enable AI…",
+                       action: #selector(AIMenuTarget.enableAI(_:)),
+                       keyEquivalent: "").target = AIMenuTarget.shared
+        aiMenu.addItem(withTitle: "Pick Model…",
+                       action: #selector(AIMenuTarget.pickModel(_:)),
+                       keyEquivalent: "").target = AIMenuTarget.shared
+        aiMenu.addItem(.separator())
+        let rewrite = NSMenuItem(title: "Rewrite Selection…",
+                                 action: Selector(("sourcepadRewriteSelection:")),
+                                 keyEquivalent: "k")
+        aiMenu.addItem(rewrite)
+        let explain = NSMenuItem(title: "Explain Selection",
+                                 action: Selector(("sourcepadExplainSelection:")),
+                                 keyEquivalent: "e")
+        explain.keyEquivalentModifierMask = [.command, .shift]
+        aiMenu.addItem(explain)
+        let accept = NSMenuItem(title: "Accept Ghost Suggestion",
+                                action: Selector(("sourcepadAcceptGhostText:")),
+                                keyEquivalent: "\t")
+        accept.keyEquivalentModifierMask = []
+        aiMenu.addItem(accept)
+        aiMenu.addItem(.separator())
+        aiMenu.addItem(withTitle: "AI Commit Message",
+                       action: Selector(("sourcepadAICommit:")),
+                       keyEquivalent: "")
+        aiMenu.addItem(withTitle: "Generate Test Stub",
+                       action: Selector(("sourcepadGenerateTest:")),
+                       keyEquivalent: "")
+
         // MARK: View menu — Theme submenu
         let viewItem = NSMenuItem()
         menubar.addItem(viewItem)
@@ -752,5 +786,36 @@ enum WorkspaceMenu {
         guard let lid = sender.representedObject as? String,
               let spec = LSPServerRegistry.all.first(where: { $0.languageId == lid }) else { return }
         LSPInstaller.shared.promptIfMissing(spec, parentWindow: NSApp.keyWindow)
+    }
+}
+
+// MARK: - AI menu target (Phase 10)
+
+@objc final class AIMenuTarget: NSObject {
+    @objc static let shared = AIMenuTarget()
+
+    @objc func enableAI(_ sender: Any?) {
+        // First-run pick + spawn.
+        if Preferences.shared.aiModelID == nil {
+            _ = ModelManager.promptToPickModel(parent: NSApp.keyWindow)
+        }
+        guard MLXService.shared.isInstalled else {
+            let alert = NSAlert()
+            alert.messageText = "mlx-lm not installed"
+            alert.informativeText = "Sourcepad needs mlx-lm to run local AI. Install with:\n\n    \(MLXService.shared.installHint ?? "pip install mlx-lm")"
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+        MLXService.shared.start()
+    }
+
+    @objc func pickModel(_ sender: Any?) {
+        _ = ModelManager.promptToPickModel(parent: NSApp.keyWindow)
+        // Restart service with new model.
+        MLXService.shared.stop()
+        if Preferences.shared.aiEnabled {
+            MLXService.shared.start()
+        }
     }
 }
