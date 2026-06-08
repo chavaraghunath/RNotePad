@@ -125,7 +125,7 @@ public enum MainMenu {
         viewMenu.addItem(lang)
 
         viewMenu.addItem(.separator())
-        let previewItem = NSMenuItem(title: "Show Preview",
+        let previewItem = NSMenuItem(title: "Toggle Preview",
                                      action: #selector(PreviewMenuTarget.showPreview(_:)),
                                      keyEquivalent: "p")
         previewItem.keyEquivalentModifierMask = [.command, .shift]
@@ -252,56 +252,21 @@ enum LanguageMenu {
 @objc final class PreviewMenuTarget: NSObject {
     @objc static let shared = PreviewMenuTarget()
 
-    // One preview controller per source document (keyed by ObjectIdentifier).
-    private var open: [ObjectIdentifier: PreviewWindowController] = [:]
-
     @objc func showPreview(_ sender: NSMenuItem) {
-        guard let doc = NSDocumentController.shared.currentDocument as? TextDocument else {
+        guard let editor = activeEditor() else {
             NSSound.beep()
             return
         }
-        let key = ObjectIdentifier(doc)
-        if let wc = open[key] {
-            wc.render()
-            wc.showWindow(nil)
-            wc.window?.makeKeyAndOrderFront(nil)
-            return
-        }
-        let kind = previewKind(for: doc)
-        guard let k = kind else {
-            // No preview available — show a brief alert.
-            let alert = NSAlert()
-            alert.messageText = "Preview not available"
-            alert.informativeText = "RNotePad can preview HTML and Markdown files. The current document is neither."
-            alert.runModal()
-            return
-        }
-        let wc = PreviewWindowController(document: doc, kind: k)
-        open[key] = wc
-        // Auto-cleanup on close.
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: wc.window,
-            queue: .main
-        ) { [weak self] _ in
-            self?.open.removeValue(forKey: key)
-        }
-        wc.showWindow(nil)
-        wc.window?.makeKeyAndOrderFront(nil)
+        editor.togglePreview()
     }
 
-    private func previewKind(for doc: TextDocument) -> PreviewWindowController.Kind? {
-        let name = (doc.fileURL?.lastPathComponent ?? "").lowercased()
-        if name.hasSuffix(".md") || name.hasSuffix(".markdown") || name.hasSuffix(".mdx") {
-            return .markdown
+    private func activeEditor() -> EditorViewController? {
+        if let doc = NSDocumentController.shared.currentDocument as? TextDocument,
+           let wc = doc.windowControllers.first as? EditorWindowController {
+            return wc.editorViewController
         }
-        if name.hasSuffix(".html") || name.hasSuffix(".htm") || name.hasSuffix(".xhtml") {
-            return .html
-        }
-        // Untitled documents: peek at the editor's active lexer if it's set.
-        if let editor = (doc.windowControllers.first as? EditorWindowController)?.editorViewController {
-            if editor.activeLexer == "markdown" { return .markdown }
-            if editor.activeLexer == "hypertext" || editor.activeLexer == "xml" { return .html }
+        if let vc = NSApp.keyWindow?.contentViewController as? EditorViewController {
+            return vc
         }
         return nil
     }

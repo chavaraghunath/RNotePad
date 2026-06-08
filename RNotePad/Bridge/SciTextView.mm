@@ -72,6 +72,7 @@ BOOL SciApplyLexer(NSView *view, NSString *lexerName) {
     if (!lexerName || lexerName.length == 0) {
         // Detach lexer → plain text mode.
         [v setReferenceProperty:SCI_SETILEXER parameter:0 value:nullptr];
+        [v message:SCI_COLOURISE wParam:0 lParam:-1];
         return YES;
     }
     Lexilla::CreateLexerFn create = LoadCreateLexer();
@@ -82,6 +83,10 @@ BOOL SciApplyLexer(NSView *view, NSString *lexerName) {
         return NO;
     }
     [v setReferenceProperty:SCI_SETILEXER parameter:0 value:lexer];
+    // Force a full re-tokenization so existing buffer text picks up the new
+    // lexer's style assignments (especially important when switching lexers
+    // or when style palette was extended after the buffer was first lexed).
+    [v message:SCI_COLOURISE wParam:0 lParam:-1];
     return YES;
 }
 
