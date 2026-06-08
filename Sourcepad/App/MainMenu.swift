@@ -96,9 +96,19 @@ public enum MainMenu {
         fileMenu.addItem(withTitle: "Page Setup…",
                          action: #selector(NSDocument.runPageLayout(_:)),
                          keyEquivalent: "")
+        // Print loses ⌘P to Quick Open File (VS Code / Sublime convention).
+        // Still reachable via the menu (no shortcut).
         fileMenu.addItem(withTitle: "Print…",
                          action: #selector(NSDocument.printDocument(_:)),
-                         keyEquivalent: "p")
+                         keyEquivalent: "")
+
+        fileMenu.addItem(.separator())
+
+        // ⌘P — Quick Open File (Phase 3)
+        let quickOpen = NSMenuItem(title: "Quick Open File…",
+                                   action: Selector(("sourcepadQuickOpenFile:")),
+                                   keyEquivalent: "p")
+        fileMenu.addItem(quickOpen)
 
         // MARK: Edit menu (standard responder chain — Scintilla handles via first responder)
         let editItem = NSMenuItem()
@@ -225,6 +235,14 @@ public enum MainMenu {
         findMenu.addItem(findInFiles)
         editMenu.addItem(find)
 
+        // ⌘⇧P — Command Palette (Phase 3)
+        editMenu.addItem(.separator())
+        let cmdPalette = NSMenuItem(title: "Command Palette…",
+                                    action: Selector(("sourcepadCommandPalette:")),
+                                    keyEquivalent: "p")
+        cmdPalette.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(cmdPalette)
+
         // MARK: View menu — Theme submenu
         let viewItem = NSMenuItem()
         menubar.addItem(viewItem)
@@ -309,12 +327,19 @@ public enum MainMenu {
         foldMenu.addItem(unfoldAll)
         viewMenu.addItem(fold)
 
+        // Toggle Preview moves from ⌘⇧P to ⌥⌘P; ⌘⇧P is now Command Palette.
         let previewItem = NSMenuItem(title: "Toggle Preview",
                                      action: #selector(PreviewMenuTarget.showPreview(_:)),
                                      keyEquivalent: "p")
-        previewItem.keyEquivalentModifierMask = [.command, .shift]
+        previewItem.keyEquivalentModifierMask = [.command, .option]
         previewItem.target = PreviewMenuTarget.shared
         viewMenu.addItem(previewItem)
+
+        // ⌘T — Go to Symbol in Workspace (Phase 3)
+        let gotoSymbol = NSMenuItem(title: "Go to Symbol…",
+                                    action: Selector(("sourcepadGoToSymbol:")),
+                                    keyEquivalent: "t")
+        viewMenu.addItem(gotoSymbol)
 
         viewMenu.addItem(.separator())
         let inspectItem = NSMenuItem(title: "Inspect Lexer Styles → /tmp/sourcepad.log",

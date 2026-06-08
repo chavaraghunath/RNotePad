@@ -97,4 +97,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false  // Standard macOS behavior — quit explicitly via Cmd-Q.
     }
+
+    // MARK: - Palettes (Phase 3)
+    //
+    // Live on AppDelegate (not a per-window VC) because palettes are global.
+    // The responder chain reaches AppDelegate as a last resort.
+
+    @objc public func sourcepadQuickOpenFile(_ sender: Any?) {
+        PaletteWindowController.shared.present(provider: FilePaletteProvider())
+    }
+
+    @objc public func sourcepadCommandPalette(_ sender: Any?) {
+        PaletteWindowController.shared.present(provider: CommandPaletteProvider())
+    }
+
+    @objc public func sourcepadGoToSymbol(_ sender: Any?) {
+        PaletteWindowController.shared.present(provider: SymbolPaletteProvider())
+    }
 }
