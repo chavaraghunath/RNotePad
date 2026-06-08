@@ -3,6 +3,7 @@
 // C++-leaky headers. Swift never sees these.
 
 #import "SciTextView.h"
+#import "Allocations.h"
 
 #import <Scintilla/ScintillaView.h>
 #import <Scintilla/Scintilla.h>
@@ -16,6 +17,22 @@
 
 #import <dlfcn.h>
 #import <objc/runtime.h>
+#import <limits.h>
+
+// MARK: - Detail-dictionary keys (exported)
+
+NSString * const SciDetailPosition         = @"position";
+NSString * const SciDetailModifiers        = @"modifiers";
+NSString * const SciDetailCodePoint        = @"codePoint";
+NSString * const SciDetailX                = @"x";
+NSString * const SciDetailY                = @"y";
+NSString * const SciDetailText             = @"text";
+NSString * const SciDetailListType         = @"listType";
+NSString * const SciDetailLinesAdded       = @"linesAdded";
+NSString * const SciDetailModificationType = @"modificationType";
+NSString * const SciDetailLength           = @"length";
+NSString * const SciDetailUpdated          = @"updated";
+NSString * const SciDetailMargin           = @"margin";
 
 // MARK: - View lifecycle
 
@@ -282,35 +299,110 @@ BOOL SciIsModified(NSView *view) {
 // objects so we don't subclass ScintillaView.
 
 @interface SPSciDelegate : NSObject <ScintillaNotificationProtocol>
-@property (nonatomic, copy, nullable) void (^handler)(SciNotification);
+@property (nonatomic, copy, nullable) void (^handler)(SciNotification, NSDictionary * _Nullable);
 @property (nonatomic, copy, nullable) void (^marginClickHandler)(NSInteger bytePos, NSInteger margin);
 @end
 
 @implementation SPSciDelegate
+
+/// Build a detail dictionary appropriate to the notification code. Returns
+/// nil for events with no useful payload (savepoint/focus/zoom signal-only).
+- (NSDictionary * _Nullable)detailFor:(SCNotification *)scn {
+    int code = scn->nmhdr.code;
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    switch (code) {
+        case SCN_CHARADDED:
+            d[SciDetailCodePoint] = @(scn->ch);
+            // The current caret position after the inserted char.
+            d[SciDetailPosition]  = @(scn->position);
+            break;
+        case SCN_MODIFIED:
+            d[SciDetailPosition]         = @(scn->position);
+            d[SciDetailLength]           = @(scn->length);
+            d[SciDetailLinesAdded]       = @(scn->linesAdded);
+            d[SciDetailModificationType] = @(scn->modificationType);
+            break;
+        case SCN_UPDATEUI:
+            d[SciDetailUpdated] = @(scn->updated);
+            break;
+        case SCN_MARGINCLICK:
+            d[SciDetailPosition]  = @(scn->position);
+            d[SciDetailMargin]    = @(scn->margin);
+            d[SciDetailModifiers] = @(scn->modifiers);
+            break;
+        case SCN_DWELLSTART:
+        case SCN_DWELLEND:
+            d[SciDetailPosition] = @(scn->position);
+            d[SciDetailX]        = @(scn->x);
+            d[SciDetailY]        = @(scn->y);
+            break;
+        case SCN_INDICATORCLICK:
+        case SCN_INDICATORRELEASE:
+            d[SciDetailPosition]  = @(scn->position);
+            d[SciDetailModifiers] = @(scn->modifiers);
+            break;
+        case SCN_AUTOCSELECTION:
+            d[SciDetailPosition] = @(scn->position);
+            d[SciDetailListType] = @(scn->listType);
+            if (scn->text) {
+                d[SciDetailText] = [NSString stringWithUTF8String:scn->text] ?: @"";
+            }
+            break;
+        default:
+            return nil;
+    }
+    return [d copy];
+}
+
 - (void)notification:(SCNotification *)scn {
     int code = scn->nmhdr.code;
+
+    // Legacy margin-click callback path (kept so existing fold/breakpoint
+    // wiring needn't migrate to the detail-dictionary form yet).
     if (code == SCN_MARGINCLICK && self.marginClickHandler) {
-        NSInteger pos = (NSInteger)scn->position;
+        NSInteger pos  = (NSInteger)scn->position;
         NSInteger marg = (NSInteger)scn->margin;
         dispatch_async(dispatch_get_main_queue(), ^{
             if (self.marginClickHandler) self.marginClickHandler(pos, marg);
         });
     }
+
     if (!self.handler) return;
-    if (code == SCN_MODIFIED || code == SCN_SAVEPOINTREACHED || code == SCN_SAVEPOINTLEFT
-        || code == SCN_FOCUSIN || code == SCN_FOCUSOUT
-        || code == SCN_UPDATEUI || code == SCN_MARGINCLICK) {
-        SciNotification typed = (SciNotification)code;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (self.handler) self.handler(typed);
-        });
+
+    // Only dispatch notifications we've exposed to Swift. Adding a new
+    // SciNotification case requires also adding its code here.
+    switch (code) {
+        case SCN_CHARADDED:
+        case SCN_SAVEPOINTREACHED:
+        case SCN_SAVEPOINTLEFT:
+        case SCN_UPDATEUI:
+        case SCN_MODIFIED:
+        case SCN_MARGINCLICK:
+        case SCN_DWELLSTART:
+        case SCN_DWELLEND:
+        case SCN_ZOOM:
+        case SCN_AUTOCSELECTION:
+        case SCN_INDICATORCLICK:
+        case SCN_INDICATORRELEASE:
+        case SCN_FOCUSIN:
+        case SCN_FOCUSOUT:
+            break;
+        default:
+            return;
     }
+
+    SciNotification typed = (SciNotification)code;
+    NSDictionary *detail = [self detailFor:scn];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self.handler) self.handler(typed, detail);
+    });
 }
 @end
 
 static const char kSPSciDelegateKey = 0;
 
-void SciSetNotificationHandler(NSView *view, void (^handler)(SciNotification type)) {
+void SciSetNotificationHandler(NSView *view,
+                               void (^handler)(SciNotification type, NSDictionary * _Nullable detail)) {
     ScintillaView *v = (ScintillaView *)view;
     if (!handler) {
         v.delegate = nil;
@@ -798,4 +890,252 @@ void SciGitGutterClearLines(NSView *view, int addedMarker, int modifiedMarker, i
     [v message:SCI_MARKERDELETEALL wParam:(uptr_t)addedMarker    lParam:0];
     [v message:SCI_MARKERDELETEALL wParam:(uptr_t)modifiedMarker lParam:0];
     [v message:SCI_MARKERDELETEALL wParam:(uptr_t)deletedMarker  lParam:0];
+}
+
+// MARK: - Indicators
+
+void SciDefineIndicator(NSView *view,
+                        int indicatorNumber,
+                        SciIndicatorStyle style,
+                        NSColor *foreground,
+                        NSInteger alpha) {
+    ScintillaView *v = (ScintillaView *)view;
+    [v setGeneralProperty:SCI_INDICSETSTYLE parameter:indicatorNumber value:(int)style];
+    if (foreground) {
+        [v setColorProperty:SCI_INDICSETFORE parameter:indicatorNumber value:foreground];
+    }
+    if (alpha >= 0 && alpha <= 255) {
+        [v setGeneralProperty:SCI_INDICSETALPHA        parameter:indicatorNumber value:(int)alpha];
+        [v setGeneralProperty:SCI_INDICSETOUTLINEALPHA parameter:indicatorNumber value:(int)alpha];
+    }
+    // Render below text by default so overlays don't visually replace glyphs.
+    [v setGeneralProperty:SCI_INDICSETUNDER parameter:indicatorNumber value:1];
+}
+
+void SciIndicatorFillRange(NSView *view, int indicatorNumber, NSInteger startByte, NSInteger lengthBytes) {
+    if (lengthBytes <= 0) return;
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t docLen = [v message:SCI_GETLENGTH];
+    if (startByte < 0) startByte = 0;
+    if (startByte >= docLen) return;
+    if (startByte + lengthBytes > docLen) lengthBytes = docLen - startByte;
+    [v message:SCI_SETINDICATORCURRENT  wParam:(uptr_t)indicatorNumber lParam:0];
+    [v message:SCI_INDICATORFILLRANGE   wParam:(uptr_t)startByte       lParam:(sptr_t)lengthBytes];
+}
+
+void SciIndicatorClearRange(NSView *view, int indicatorNumber, NSInteger startByte, NSInteger lengthBytes) {
+    if (lengthBytes <= 0) return;
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t docLen = [v message:SCI_GETLENGTH];
+    if (startByte < 0) startByte = 0;
+    if (startByte >= docLen) return;
+    if (startByte + lengthBytes > docLen) lengthBytes = docLen - startByte;
+    [v message:SCI_SETINDICATORCURRENT  wParam:(uptr_t)indicatorNumber lParam:0];
+    [v message:SCI_INDICATORCLEARRANGE  wParam:(uptr_t)startByte       lParam:(sptr_t)lengthBytes];
+}
+
+BOOL SciIndicatorAtPosition(NSView *view, int indicatorNumber, NSInteger bytePos) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t docLen = [v message:SCI_GETLENGTH];
+    if (bytePos < 0 || bytePos > docLen) return NO;
+    sptr_t val = [v message:SCI_INDICATORVALUEAT wParam:(uptr_t)indicatorNumber lParam:(sptr_t)bytePos];
+    return val != 0;
+}
+
+// MARK: - Annotations
+
+void SciSetAnnotationVisibility(NSView *view, SciAnnotationVisibility mode) {
+    [(ScintillaView *)view message:SCI_ANNOTATIONSETVISIBLE wParam:(uptr_t)mode lParam:0];
+}
+
+void SciSetAnnotationText(NSView *view, NSInteger line, NSString *text) {
+    ScintillaView *v = (ScintillaView *)view;
+    const char *utf8 = text ? [text UTF8String] : nullptr;
+    [v setReferenceProperty:SCI_ANNOTATIONSETTEXT parameter:(uptr_t)line value:utf8];
+}
+
+void SciSetAnnotationStyle(NSView *view, NSInteger line, int styleIndex) {
+    [(ScintillaView *)view message:SCI_ANNOTATIONSETSTYLE
+                          wParam:(uptr_t)line
+                          lParam:(sptr_t)styleIndex];
+}
+
+void SciClearAllAnnotations(NSView *view) {
+    [(ScintillaView *)view message:SCI_ANNOTATIONCLEARALL];
+}
+
+// MARK: - EOL annotations
+
+void SciSetEOLAnnotationVisibility(NSView *view, int mode) {
+    [(ScintillaView *)view message:SCI_EOLANNOTATIONSETVISIBLE wParam:(uptr_t)mode lParam:0];
+}
+
+void SciSetEOLAnnotationText(NSView *view, NSInteger line, NSString *text) {
+    ScintillaView *v = (ScintillaView *)view;
+    const char *utf8 = text ? [text UTF8String] : nullptr;
+    [v setReferenceProperty:SCI_EOLANNOTATIONSETTEXT parameter:(uptr_t)line value:utf8];
+}
+
+void SciSetEOLAnnotationStyle(NSView *view, NSInteger line, int styleIndex) {
+    [(ScintillaView *)view message:SCI_EOLANNOTATIONSETSTYLE
+                          wParam:(uptr_t)line
+                          lParam:(sptr_t)styleIndex];
+}
+
+void SciClearAllEOLAnnotations(NSView *view) {
+    // Scintilla doesn't expose a single-call clear-all for EOL annotations
+    // (as of Scintilla 5.x). Iterate over lines that have one set. This is
+    // O(lines) but only invoked on explicit clear (e.g. when LSP shuts down
+    // for the document); we can revisit if it shows up in profiles.
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t lines = [v message:SCI_GETLINECOUNT];
+    for (sptr_t i = 0; i < lines; i++) {
+        // SCI_EOLANNOTATIONGETTEXT returns the byte length; we just need to
+        // know whether one exists.
+        sptr_t len = [v message:SCI_EOLANNOTATIONGETTEXT wParam:(uptr_t)i lParam:0];
+        if (len > 0) {
+            [v setReferenceProperty:SCI_EOLANNOTATIONSETTEXT parameter:(uptr_t)i value:nullptr];
+        }
+    }
+}
+
+// MARK: - Mouse dwell
+
+void SciSetMouseDwellTime(NSView *view, NSInteger milliseconds) {
+    // Scintilla uses SC_TIME_FOREVER (LONG_MAX) to disable.
+    uptr_t ms = (milliseconds < 0) ? (uptr_t)LONG_MAX : (uptr_t)milliseconds;
+    [(ScintillaView *)view message:SCI_SETMOUSEDWELLTIME wParam:ms lParam:0];
+}
+
+// MARK: - Document operations
+
+void SciInsertTextAt(NSView *view, NSInteger bytePos, NSString *text) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t docLen = [v message:SCI_GETLENGTH];
+    if (bytePos < 0) bytePos = 0;
+    if (bytePos > docLen) bytePos = docLen;
+    const char *utf8 = [text UTF8String] ?: "";
+    [v message:SCI_INSERTTEXT wParam:(uptr_t)bytePos lParam:(sptr_t)utf8];
+}
+
+void SciDeleteRange(NSView *view, NSInteger startByte, NSInteger lengthBytes) {
+    if (lengthBytes <= 0) return;
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t docLen = [v message:SCI_GETLENGTH];
+    if (startByte < 0) startByte = 0;
+    if (startByte >= docLen) return;
+    if (startByte + lengthBytes > docLen) lengthBytes = docLen - startByte;
+    [v message:SCI_DELETERANGE wParam:(uptr_t)startByte lParam:(sptr_t)lengthBytes];
+}
+
+NSInteger SciPositionFromLineColumn(NSView *view, NSInteger line0Based, NSInteger column0Based) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t totalLines = [v message:SCI_GETLINECOUNT];
+    if (totalLines <= 0) return 0;
+    if (line0Based < 0) line0Based = 0;
+    if (line0Based >= totalLines) line0Based = totalLines - 1;
+    if (column0Based < 0) column0Based = 0;
+    return (NSInteger)[v message:SCI_FINDCOLUMN
+                         wParam:(uptr_t)line0Based
+                         lParam:(sptr_t)column0Based];
+}
+
+// MARK: - Visible-range info
+
+NSInteger SciVisibleLineFirst(NSView *view) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_GETFIRSTVISIBLELINE];
+}
+
+NSInteger SciVisibleLineCount(NSView *view) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_LINESONSCREEN];
+}
+
+NSInteger SciDocLineFromVisible(NSView *view, NSInteger visibleLine) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_DOCLINEFROMVISIBLE
+                                              wParam:(uptr_t)visibleLine
+                                              lParam:0];
+}
+
+NSInteger SciVisibleLineFromDoc(NSView *view, NSInteger docLine) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_VISIBLEFROMDOCLINE
+                                              wParam:(uptr_t)docLine
+                                              lParam:0];
+}
+
+// MARK: - Coordinate conversion
+
+NSPoint SciPointFromPosition(NSView *view, NSInteger bytePos) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t docLen = [v message:SCI_GETLENGTH];
+    if (bytePos < 0) bytePos = 0;
+    if (bytePos > docLen) bytePos = docLen;
+    sptr_t x = [v message:SCI_POINTXFROMPOSITION wParam:0 lParam:(sptr_t)bytePos];
+    sptr_t y = [v message:SCI_POINTYFROMPOSITION wParam:0 lParam:(sptr_t)bytePos];
+    return NSMakePoint((CGFloat)x, (CGFloat)y);
+}
+
+// MARK: - Margins 1 + 4 setup
+
+void SciSetupBreakpointMargin(NSView *view, NSColor *foreground, NSColor *background) {
+    ScintillaView *v = (ScintillaView *)view;
+    int marginIdx = SPMarginBreakpoint;
+
+    // Margin shows breakpoint markers (8..11) and the bookmark marker (24).
+    int mask = (1 << SPMarkerBreakpoint)
+             | (1 << SPMarkerBreakpointDisabled)
+             | (1 << SPMarkerBreakpointConditional)
+             | (1 << SPMarkerStackFrameCurrent)
+             | (1 << SPMarkerBookmark);
+
+    [v setGeneralProperty:SCI_SETMARGINTYPEN      parameter:marginIdx value:SC_MARGIN_SYMBOL];
+    [v setGeneralProperty:SCI_SETMARGINMASKN      parameter:marginIdx value:mask];
+    [v setGeneralProperty:SCI_SETMARGINWIDTHN     parameter:marginIdx value:14];
+    [v setGeneralProperty:SCI_SETMARGINSENSITIVEN parameter:marginIdx value:1];
+
+    // Default glyph shapes; colours configurable per-marker by the caller.
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:SPMarkerBreakpoint             value:SC_MARK_CIRCLE];
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:SPMarkerBreakpointDisabled     value:SC_MARK_CIRCLE];
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:SPMarkerBreakpointConditional  value:SC_MARK_CIRCLE];
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:SPMarkerStackFrameCurrent      value:SC_MARK_SHORTARROW];
+
+    if (foreground) {
+        [v setColorProperty:SCI_MARKERSETFORE parameter:SPMarkerBreakpoint            value:foreground];
+        [v setColorProperty:SCI_MARKERSETFORE parameter:SPMarkerBreakpointDisabled    value:foreground];
+        [v setColorProperty:SCI_MARKERSETFORE parameter:SPMarkerBreakpointConditional value:foreground];
+        [v setColorProperty:SCI_MARKERSETFORE parameter:SPMarkerStackFrameCurrent     value:foreground];
+    }
+    if (background) {
+        [v setColorProperty:SCI_MARKERSETBACK parameter:SPMarkerBreakpoint            value:background];
+        [v setColorProperty:SCI_MARKERSETBACK parameter:SPMarkerBreakpointConditional value:background];
+        [v setColorProperty:SCI_MARKERSETBACK parameter:SPMarkerStackFrameCurrent     value:background];
+    }
+}
+
+void SciSetupDiagnosticMargin(NSView *view,
+                              NSColor *errorColor,
+                              NSColor *warningColor,
+                              NSColor *infoColor,
+                              NSColor *hintColor) {
+    ScintillaView *v = (ScintillaView *)view;
+    int marginIdx = SPMarginDiagnostic;
+    int mask = (1 << SPMarkerDiagError)
+             | (1 << SPMarkerDiagWarning)
+             | (1 << SPMarkerDiagInfo)
+             | (1 << SPMarkerDiagHint);
+
+    [v setGeneralProperty:SCI_SETMARGINTYPEN      parameter:marginIdx value:SC_MARGIN_SYMBOL];
+    [v setGeneralProperty:SCI_SETMARGINMASKN      parameter:marginIdx value:mask];
+    [v setGeneralProperty:SCI_SETMARGINWIDTHN     parameter:marginIdx value:6];
+    [v setGeneralProperty:SCI_SETMARGINSENSITIVEN parameter:marginIdx value:0];
+
+    // Use small filled rects coloured by severity.
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:SPMarkerDiagError   value:SC_MARK_FULLRECT];
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:SPMarkerDiagWarning value:SC_MARK_FULLRECT];
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:SPMarkerDiagInfo    value:SC_MARK_FULLRECT];
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:SPMarkerDiagHint    value:SC_MARK_FULLRECT];
+
+    if (errorColor)   [v setColorProperty:SCI_MARKERSETBACK parameter:SPMarkerDiagError   value:errorColor];
+    if (warningColor) [v setColorProperty:SCI_MARKERSETBACK parameter:SPMarkerDiagWarning value:warningColor];
+    if (infoColor)    [v setColorProperty:SCI_MARKERSETBACK parameter:SPMarkerDiagInfo    value:infoColor];
+    if (hintColor)    [v setColorProperty:SCI_MARKERSETBACK parameter:SPMarkerDiagHint    value:hintColor];
 }

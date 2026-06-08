@@ -357,7 +357,7 @@ public final class EditorPaneViewController: NSViewController {
     // MARK: - Scintilla notifications
 
     private func installNotificationHandler() {
-        SciSetNotificationHandler(sciView) { [weak self] type in
+        SciSetNotificationHandler(sciView) { [weak self] type, _ in
             guard let self else { return }
             switch type {
             case .savePointReached:
@@ -373,7 +373,18 @@ public final class EditorPaneViewController: NSViewController {
                     AutoComplete.update(in: self.sciView, lexer: self.currentLexer)
                 }
                 NotificationCenter.default.post(name: .sourcepadEditorUIDidUpdate, object: self)
-            default:
+            case .charAdded,
+                 .dwellStart, .dwellEnd,
+                 .zoom,
+                 .autoCSelection,
+                 .indicatorClick, .indicatorRelease,
+                 .marginClick,        // handled via SciSetMarginClickHandler
+                 .focusIn, .focusOut:
+                // Subscribers wire in later phases (AI ghost text, LSP hover,
+                // signature help, etc.). Acknowledged here so the dispatcher
+                // doesn't appear silent to future readers.
+                break
+            @unknown default:
                 break
             }
         }

@@ -15,14 +15,52 @@ extern "C" {
 
 // Same numeric values as Scintilla's SCN_* constants.
 typedef NS_ENUM(int, SciNotification) {
-    SciNotificationModified        = 2008,
-    SciNotificationSavePointReached = 2002,
-    SciNotificationSavePointLeft   = 2003,
-    SciNotificationFocusIn         = 2028,
-    SciNotificationFocusOut        = 2029,
-    SciNotificationUpdateUI        = 2007,
-    SciNotificationMarginClick     = 2010,
+    SciNotificationCharAdded         = 2001,
+    SciNotificationSavePointReached  = 2002,
+    SciNotificationSavePointLeft     = 2003,
+    SciNotificationUpdateUI          = 2007,
+    SciNotificationModified          = 2008,
+    SciNotificationMarginClick       = 2010,
+    SciNotificationDwellStart        = 2016,
+    SciNotificationDwellEnd          = 2017,
+    SciNotificationZoom              = 2018,
+    SciNotificationAutoCSelection    = 2022,
+    SciNotificationIndicatorClick    = 2023,
+    SciNotificationIndicatorRelease  = 2024,
+    SciNotificationFocusIn           = 2028,
+    SciNotificationFocusOut          = 2029,
 };
+
+// Detail-dictionary keys passed to the notification handler. Not every
+// notification has every key; callers should treat lookups as optional.
+//
+// All values are NSNumber unless noted.
+//
+//   "position"         byte position in the document
+//   "modifiers"        Cocoa NSEventModifierFlags subset (Shift/Ctrl/Alt/Cmd)
+//   "codePoint"        Unicode code point of the just-added char (CharAdded)
+//   "x", "y"           pixel coordinates relative to the editor view (Dwell*)
+//   "text"             NSString — selected autocompletion item (AutoCSelection)
+//   "listType"         autocompletion list type (AutoCSelection)
+//   "linesAdded"       net lines added (>=0) or removed (<0) (Modified)
+//   "modificationType" raw SC_MOD_* flags (Modified)
+//   "length"           byte length of the modified range (Modified)
+//   "updated"          SC_UPDATE_* flag bitmask (UpdateUI)
+//   "margin"           margin index (MarginClick)
+//
+// These are string constants exported for autocompletion of detail lookups.
+extern NSString * const SciDetailPosition;
+extern NSString * const SciDetailModifiers;
+extern NSString * const SciDetailCodePoint;
+extern NSString * const SciDetailX;
+extern NSString * const SciDetailY;
+extern NSString * const SciDetailText;
+extern NSString * const SciDetailListType;
+extern NSString * const SciDetailLinesAdded;
+extern NSString * const SciDetailModificationType;
+extern NSString * const SciDetailLength;
+extern NSString * const SciDetailUpdated;
+extern NSString * const SciDetailMargin;
 
 // MARK: - View
 
@@ -86,7 +124,12 @@ BOOL SciIsModified(NSView *view);
 /// Install a callback invoked on the main thread for select Scintilla events.
 /// Pass `nil` to remove. Only one handler at a time per view; calling again
 /// replaces the previous handler.
-void SciSetNotificationHandler(NSView *view, void (^_Nullable handler)(SciNotification type));
+///
+/// `detail` carries per-notification payload (see SciDetail* keys above). It
+/// is nil for notifications with no useful payload.
+void SciSetNotificationHandler(NSView *view,
+                               void (^_Nullable handler)(SciNotification type,
+                                                          NSDictionary * _Nullable detail));
 
 // MARK: - Debug
 
@@ -263,6 +306,137 @@ void SciSetupGitGutter(NSView *view,
                        NSColor *modifiedColor,
                        NSColor *deletedColor);
 void SciGitGutterClearLines(NSView *view, int addedMarker, int modifiedMarker, int deletedMarker);
+
+// MARK: - Indicators (for AI ghost-text, LSP squiggles, bracket-pair colorize, etc.)
+//
+// Scintilla supports 32 indicators (0–31). Slots 8–31 are user-defined. The
+// canonical allocation lives in Allocations.h — refer to SPIndicator* names,
+// never bare integers.
+
+typedef NS_ENUM(int, SciIndicatorStyle) {
+    SciIndicatorStylePlain            = 0,
+    SciIndicatorStyleSquiggle         = 1,
+    SciIndicatorStyleTT               = 2,
+    SciIndicatorStyleDiagonal         = 3,
+    SciIndicatorStyleStrike           = 4,
+    SciIndicatorStyleHidden           = 5,
+    SciIndicatorStyleBox              = 6,
+    SciIndicatorStyleRoundBox         = 7,
+    SciIndicatorStyleStraightBox      = 8,
+    SciIndicatorStyleDash             = 9,
+    SciIndicatorStyleDots             = 10,
+    SciIndicatorStyleSquiggleLow      = 11,
+    SciIndicatorStyleDotBox           = 12,
+    SciIndicatorStyleCompositionThick = 14,
+    SciIndicatorStyleCompositionThin  = 15,
+    SciIndicatorStyleFullBox          = 16,
+    SciIndicatorStyleTextFore         = 17,
+    SciIndicatorStylePoint            = 18,
+    SciIndicatorStylePointCharacter   = 19,
+    SciIndicatorStyleGradient         = 20,
+    SciIndicatorStyleGradientCentre   = 21,
+};
+
+/// Configure a single indicator. `alpha` is 0–255 (effective only for
+/// box/gradient styles); use 256 to mean "scintilla default".
+void SciDefineIndicator(NSView *view,
+                        int indicatorNumber,
+                        SciIndicatorStyle style,
+                        NSColor *foreground,
+                        NSInteger alpha);
+
+/// Paint `lengthBytes` bytes starting at `startByte` with `indicatorNumber`.
+void SciIndicatorFillRange(NSView *view, int indicatorNumber, NSInteger startByte, NSInteger lengthBytes);
+
+/// Clear `indicatorNumber` from a range.
+void SciIndicatorClearRange(NSView *view, int indicatorNumber, NSInteger startByte, NSInteger lengthBytes);
+
+/// YES if `indicatorNumber` is set at the given byte position.
+BOOL SciIndicatorAtPosition(NSView *view, int indicatorNumber, NSInteger bytePos);
+
+// MARK: - Annotations (multi-line text bound to a single document line)
+//
+// Used for: LSP inline error messages, AI multi-line ghost suggestions.
+// Visibility is per-view; per-line text + style is per line.
+
+typedef NS_ENUM(int, SciAnnotationVisibility) {
+    SciAnnotationHidden   = 0,
+    SciAnnotationStandard = 1,
+    SciAnnotationBoxed    = 2,
+    SciAnnotationIndented = 3,
+};
+
+void SciSetAnnotationVisibility(NSView *view, SciAnnotationVisibility mode);
+/// Pass nil to clear the annotation on this line.
+void SciSetAnnotationText(NSView *view, NSInteger line0Based, NSString * _Nullable text);
+void SciSetAnnotationStyle(NSView *view, NSInteger line0Based, int styleIndex);
+void SciClearAllAnnotations(NSView *view);
+
+// MARK: - EOL annotations (single-line text appended after the last char of a line)
+//
+// Used for: LSP inlay hints (parameter names, type hints), inline blame, AI
+// single-line ghost suggestions, presence cursors in CRDT collab.
+
+void SciSetEOLAnnotationVisibility(NSView *view, int mode);
+void SciSetEOLAnnotationText(NSView *view, NSInteger line0Based, NSString * _Nullable text);
+void SciSetEOLAnnotationStyle(NSView *view, NSInteger line0Based, int styleIndex);
+void SciClearAllEOLAnnotations(NSView *view);
+
+// MARK: - Mouse dwell (hover) timing
+//
+// Pass milliseconds idle before SCN_DWELLSTART fires; pass -1 to disable.
+void SciSetMouseDwellTime(NSView *view, NSInteger milliseconds);
+
+// MARK: - Document operations
+//
+// Targeted by-byte mutations that don't move the selection. Edits made via
+// these calls participate in undo via SciBeginUndoAction / SciEndUndoAction.
+
+/// Insert UTF-8 text at the given byte position. Selection unchanged.
+void SciInsertTextAt(NSView *view, NSInteger bytePos, NSString *text);
+
+/// Delete `lengthBytes` bytes starting at `startByte`. Selection clamped.
+void SciDeleteRange(NSView *view, NSInteger startByte, NSInteger lengthBytes);
+
+/// Resolve (line, column) to byte position. Column 0 means start of line.
+/// Returns end-of-line byte if column exceeds the line's last column.
+NSInteger SciPositionFromLineColumn(NSView *view, NSInteger line0Based, NSInteger column0Based);
+
+// MARK: - Visible-range info (folded-aware)
+
+/// First display line currently visible at the top of the viewport.
+NSInteger SciVisibleLineFirst(NSView *view);
+
+/// Number of lines visible on screen (display lines, not document lines).
+NSInteger SciVisibleLineCount(NSView *view);
+
+/// Convert visible (display) line → document line. They differ when folds
+/// are collapsed.
+NSInteger SciDocLineFromVisible(NSView *view, NSInteger visibleLine);
+
+/// Convert document line → visible (display) line.
+NSInteger SciVisibleLineFromDoc(NSView *view, NSInteger docLine);
+
+// MARK: - Coordinate conversion (for popovers anchored near caret)
+
+/// Pixel point (in the editor view's coordinate space) of the given byte
+/// position. Returns NSZeroPoint if position is off-screen.
+NSPoint SciPointFromPosition(NSView *view, NSInteger bytePos);
+
+// MARK: - Margins 1 + 4 setup (breakpoint + diagnostic, allocated in Allocations.h)
+
+/// Configure margin 1 as a sensitive symbol margin showing breakpoint /
+/// bookmark markers. Idempotent.
+void SciSetupBreakpointMargin(NSView *view, NSColor *foreground, NSColor *background);
+
+/// Configure margin 4 to show LSP diagnostic severity icons. `*Color` args
+/// are background colors for the four severity marker numbers; pass nil to
+/// keep the existing color.
+void SciSetupDiagnosticMargin(NSView *view,
+                              NSColor * _Nullable errorColor,
+                              NSColor * _Nullable warningColor,
+                              NSColor * _Nullable infoColor,
+                              NSColor * _Nullable hintColor);
 
 #ifdef __cplusplus
 }
