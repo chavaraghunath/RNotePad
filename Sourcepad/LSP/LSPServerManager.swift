@@ -28,12 +28,12 @@ public final class LSPServerManager: LSPClientDelegate {
 
     // MARK: - Client lookup / spawn
 
-    /// Get-or-create a client for the language identified by Sourcepad's
-    /// internal lexer name. Returns nil if no LSP server is configured
-    /// (or installed) for that language.
-    public func client(forLexer lexer: String,
+    /// Get-or-create a client for the language identified by the file
+    /// URL's extension. Returns nil if no LSP server is configured (or
+    /// installed) for that language.
+    public func client(forFileURL url: URL,
                        workspaceRoot rootURL: URL) -> LSPClient? {
-        guard let spec = LSPServerRegistry.spec(forLexer: lexer) else { return nil }
+        guard let spec = LSPServerRegistry.spec(for: url) else { return nil }
         let rootPath = rootURL.standardizedFileURL.path
         let key = Key(rootPath: rootPath, languageId: spec.languageId)
         return queue.sync {

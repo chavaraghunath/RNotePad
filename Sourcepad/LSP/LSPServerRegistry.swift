@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Sourcepad — known language-server adapters.
 //
-// For each language we support, this registry knows:
-//   - the LSP identifier (the languageId in didOpen messages)
-//   - which executable to spawn, with what args
-//   - where to look for the binary in common toolchain locations
-//   - how to instruct the user to install it (Phase 7 uses this for the
-//     in-app "Install pyright?" prompt; for now we just surface the install
-//     command in the menu's tooltip).
+// Keying note: an LSPServerSpec is matched by file extension, NOT by the
+// Lexilla lexer name. Multiple languages share Lexilla lexers (e.g.
+// Sourcepad uses the "cpp" lexer for JS/TS/Go) but each has a distinct
+// LSP server. Extension keying gives one-to-one routing without coupling
+// LSP identity to highlighting choice.
 
 import Foundation
 
@@ -16,14 +14,11 @@ public struct LSPServerSpec {
     /// LSP languageId — what we send in didOpen messages.
     public let languageId: String
 
-    /// Sourcepad's internal lexer name (Lexilla identifier). Multiple
-    /// Lexilla lexers can map to the same languageId (e.g. javascript +
-    /// typescript both use "javascript" lexer in Sourcepad today but
-    /// distinct LSP languageIds).
-    public let lexerName: String
-
     /// Display name for menus / status bar.
     public let displayName: String
+
+    /// File extensions (no dot, lowercased) that activate this server.
+    public let fileExtensions: [String]
 
     /// Executable name (resolved against PATH + commonPaths).
     public let executableName: String
@@ -38,15 +33,15 @@ public struct LSPServerSpec {
     public let installHint: String
 
     public init(languageId: String,
-                lexerName: String,
                 displayName: String,
+                fileExtensions: [String],
                 executableName: String,
                 arguments: [String],
                 commonPaths: [String] = [],
                 installHint: String) {
         self.languageId = languageId
-        self.lexerName = lexerName
         self.displayName = displayName
+        self.fileExtensions = fileExtensions
         self.executableName = executableName
         self.arguments = arguments
         self.commonPaths = commonPaths
@@ -55,11 +50,7 @@ public struct LSPServerSpec {
 
     /// Resolve the executable. Returns nil if not found.
     public func locate() -> URL? {
-        // 1. PATH lookup via `which`.
-        if let url = LSPServerSpec.which(executableName) {
-            return url
-        }
-        // 2. Common toolchain locations.
+        if let url = LSPServerSpec.which(executableName) { return url }
         for candidate in commonPaths {
             let url = URL(fileURLWithPath: candidate)
             if FileManager.default.isExecutableFile(atPath: url.path) {
@@ -94,13 +85,14 @@ public struct LSPServerSpec {
 
 public enum LSPServerRegistry {
 
-    /// All known servers. Phase 6 ships Pyright as the proof language;
-    /// Phase 7 grows this list to 9 servers.
+    /// All known servers. Lookup is O(N · M) where N=specs, M=extensions
+    /// per spec — fine at the current scale.
     public static let all: [LSPServerSpec] = [
+        // --- Python -----------------------------------------------------
         LSPServerSpec(
             languageId: "python",
-            lexerName: "python",
             displayName: "Pyright (Python)",
+            fileExtensions: ["py", "pyi", "pyw"],
             executableName: "pyright-langserver",
             arguments: ["--stdio"],
             commonPaths: [
@@ -108,10 +100,148 @@ public enum LSPServerRegistry {
                 "/usr/local/bin/pyright-langserver",
             ],
             installHint: "npm install -g pyright"),
+
+        // --- Go ---------------------------------------------------------
+        LSPServerSpec(
+            languageId: "go",
+            displayName: "gopls (Go)",
+            fileExtensions: ["go"],
+            executableName: "gopls",
+            arguments: [],
+            commonPaths: [
+                "/opt/homebrew/bin/gopls",
+                "/usr/local/bin/gopls",
+                "\(NSHomeDirectory())/go/bin/gopls",
+            ],
+            installHint: "go install golang.org/x/tools/gopls@latest"),
+
+        // --- Rust -------------------------------------------------------
+        LSPServerSpec(
+            languageId: "rust",
+            displayName: "rust-analyzer",
+            fileExtensions: ["rs"],
+            executableName: "rust-analyzer",
+            arguments: [],
+            commonPaths: [
+                "/opt/homebrew/bin/rust-analyzer",
+                "/usr/local/bin/rust-analyzer",
+                "\(NSHomeDirectory())/.cargo/bin/rust-analyzer",
+            ],
+            installHint: "rustup component add rust-analyzer"),
+
+        // --- TypeScript / JavaScript -----------------------------------
+        LSPServerSpec(
+            languageId: "typescript",
+            displayName: "TypeScript Language Server",
+            fileExtensions: ["ts", "tsx", "js", "jsx", "mjs", "cjs"],
+            executableName: "typescript-language-server",
+            arguments: ["--stdio"],
+            commonPaths: [
+                "/opt/homebrew/bin/typescript-language-server",
+                "/usr/local/bin/typescript-language-server",
+            ],
+            installHint: "npm install -g typescript typescript-language-server"),
+
+        // --- C / C++ / Obj-C / Obj-C++ ---------------------------------
+        LSPServerSpec(
+            languageId: "cpp",
+            displayName: "clangd (C/C++/ObjC)",
+            fileExtensions: ["c", "cc", "cxx", "cpp", "h", "hh", "hpp", "hxx",
+                             "m", "mm", "objc", "objcpp"],
+            executableName: "clangd",
+            arguments: [],
+            commonPaths: [
+                "/opt/homebrew/opt/llvm/bin/clangd",
+                "/usr/local/opt/llvm/bin/clangd",
+                "/Library/Developer/CommandLineTools/usr/bin/clangd",
+                "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clangd",
+            ],
+            installHint: "brew install llvm   (or use the Xcode-bundled clangd)"),
+
+        // --- Ruby -------------------------------------------------------
+        LSPServerSpec(
+            languageId: "ruby",
+            displayName: "ruby-lsp",
+            fileExtensions: ["rb", "rbw"],
+            executableName: "ruby-lsp",
+            arguments: [],
+            commonPaths: [
+                "/opt/homebrew/lib/ruby/gems/3.4.0/bin/ruby-lsp",
+            ],
+            installHint: "gem install ruby-lsp"),
+
+        // --- Lua --------------------------------------------------------
+        LSPServerSpec(
+            languageId: "lua",
+            displayName: "lua-language-server",
+            fileExtensions: ["lua"],
+            executableName: "lua-language-server",
+            arguments: [],
+            commonPaths: [
+                "/opt/homebrew/bin/lua-language-server",
+            ],
+            installHint: "brew install lua-language-server"),
+
+        // --- Bash -------------------------------------------------------
+        LSPServerSpec(
+            languageId: "shellscript",
+            displayName: "bash-language-server",
+            fileExtensions: ["sh", "bash", "zsh", "ksh"],
+            executableName: "bash-language-server",
+            arguments: ["start"],
+            commonPaths: [
+                "/opt/homebrew/bin/bash-language-server",
+            ],
+            installHint: "npm install -g bash-language-server"),
+
+        // --- HTML / CSS / JSON / YAML (single binary via vscode-langservers-extracted) --
+        LSPServerSpec(
+            languageId: "html",
+            displayName: "HTML Language Server (vscode-langservers-extracted)",
+            fileExtensions: ["html", "htm", "xhtml"],
+            executableName: "vscode-html-language-server",
+            arguments: ["--stdio"],
+            commonPaths: ["/opt/homebrew/bin/vscode-html-language-server"],
+            installHint: "npm install -g vscode-langservers-extracted"),
+
+        LSPServerSpec(
+            languageId: "css",
+            displayName: "CSS Language Server",
+            fileExtensions: ["css", "scss", "less"],
+            executableName: "vscode-css-language-server",
+            arguments: ["--stdio"],
+            commonPaths: ["/opt/homebrew/bin/vscode-css-language-server"],
+            installHint: "npm install -g vscode-langservers-extracted"),
+
+        LSPServerSpec(
+            languageId: "json",
+            displayName: "JSON Language Server",
+            fileExtensions: ["json", "jsonc"],
+            executableName: "vscode-json-language-server",
+            arguments: ["--stdio"],
+            commonPaths: ["/opt/homebrew/bin/vscode-json-language-server"],
+            installHint: "npm install -g vscode-langservers-extracted"),
+
+        // YAML LSP is a separate package even though the others above
+        // come bundled — install hint kept consistent for npm path.
+        LSPServerSpec(
+            languageId: "yaml",
+            displayName: "yaml-language-server",
+            fileExtensions: ["yaml", "yml"],
+            executableName: "yaml-language-server",
+            arguments: ["--stdio"],
+            commonPaths: ["/opt/homebrew/bin/yaml-language-server"],
+            installHint: "npm install -g yaml-language-server"),
     ]
 
-    /// Lookup by Sourcepad lexer name.
-    public static func spec(forLexer lexer: String) -> LSPServerSpec? {
-        return all.first { $0.lexerName == lexer }
+    /// Lookup by file extension (case-insensitive, no leading dot).
+    public static func spec(forExtension ext: String) -> LSPServerSpec? {
+        let normalized = ext.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        return all.first { $0.fileExtensions.contains(normalized) }
+    }
+
+    /// Lookup by file URL.
+    public static func spec(for url: URL) -> LSPServerSpec? {
+        return spec(forExtension: url.pathExtension)
     }
 }

@@ -357,6 +357,15 @@ public enum MainMenu {
         previewItem.target = PreviewMenuTarget.shared
         viewMenu.addItem(previewItem)
 
+        // View → LSP Status (Phase 7) — dynamic menu rebuilt on open.
+        let lspStatus = NSMenuItem(title: "LSP Status",
+                                   action: nil,
+                                   keyEquivalent: "")
+        let lspStatusMenu = NSMenu(title: "LSP Status")
+        lspStatusMenu.delegate = LSPStatusMenuTarget.shared
+        lspStatus.submenu = lspStatusMenu
+        viewMenu.addItem(lspStatus)
+
         // ⌘T — Go to Symbol in Workspace (Phase 3)
         let gotoSymbol = NSMenuItem(title: "Go to Symbol…",
                                     action: Selector(("sourcepadGoToSymbol:")),
@@ -694,5 +703,37 @@ enum WorkspaceMenu {
         let dir = support.appendingPathComponent("Sourcepad/Workspaces", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         NSWorkspace.shared.activateFileViewerSelecting([dir])
+    }
+}
+
+// MARK: - LSP Status menu (Phase 7)
+
+@objc final class LSPStatusMenuTarget: NSObject, NSMenuDelegate {
+    @objc static let shared = LSPStatusMenuTarget()
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        for spec in LSPServerRegistry.all {
+            let installed = spec.locate() != nil
+            let title = "\(spec.displayName) — \(installed ? "available" : "not installed")"
+            let item = NSMenuItem(title: title,
+                                  action: installed ? nil : #selector(installSpec(_:)),
+                                  keyEquivalent: "")
+            item.representedObject = spec.languageId
+            item.target = self
+            item.state = installed ? .on : .off
+            if installed {
+                item.toolTip = "Resolved: \(spec.locate()?.path ?? "")"
+            } else {
+                item.toolTip = "Install hint: \(spec.installHint)"
+            }
+            menu.addItem(item)
+        }
+    }
+
+    @objc func installSpec(_ sender: NSMenuItem) {
+        guard let lid = sender.representedObject as? String,
+              let spec = LSPServerRegistry.all.first(where: { $0.languageId == lid }) else { return }
+        LSPInstaller.shared.promptIfMissing(spec, parentWindow: NSApp.keyWindow)
     }
 }

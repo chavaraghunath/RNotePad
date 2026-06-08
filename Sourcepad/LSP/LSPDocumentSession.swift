@@ -18,7 +18,7 @@ public final class LSPDocumentSession: LSPServerManagerDelegate {
     public weak var sciView: NSView?
     public let documentURI: String
     public let languageId: String
-    public let lexerName: String
+    public let documentURL: URL
     private let workspaceRoot: URL
 
     private var client: LSPClient?
@@ -30,11 +30,10 @@ public final class LSPDocumentSession: LSPServerManagerDelegate {
     public var lastSyncedSource: String = ""
 
     public init?(documentURL: URL,
-                 lexerName: String,
                  workspaceRoot: URL,
                  sciView: NSView) {
-        guard let spec = LSPServerRegistry.spec(forLexer: lexerName) else { return nil }
-        self.lexerName = lexerName
+        guard let spec = LSPServerRegistry.spec(for: documentURL) else { return nil }
+        self.documentURL = documentURL
         self.languageId = spec.languageId
         self.documentURI = LSP.uri(forPath: documentURL.standardizedFileURL.path)
         self.workspaceRoot = workspaceRoot
@@ -45,8 +44,12 @@ public final class LSPDocumentSession: LSPServerManagerDelegate {
 
     public func start(initialText: String) {
         guard let view = sciView else { return }
-        guard let c = LSPServerManager.shared.client(forLexer: lexerName,
+        guard let c = LSPServerManager.shared.client(forFileURL: documentURL,
                                                      workspaceRoot: workspaceRoot) else {
+            // Server missing — surface the install prompt (once per session).
+            if let spec = LSPServerRegistry.spec(for: documentURL) {
+                LSPInstaller.shared.promptIfMissing(spec, parentWindow: view.window)
+            }
             return
         }
         self.client = c

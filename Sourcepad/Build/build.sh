@@ -144,6 +144,7 @@ SWIFT_SRCS=(
     "$APP_DIR/LSP/LSPDocumentSync.swift"
     "$APP_DIR/LSP/LSPDiagnostics.swift"
     "$APP_DIR/LSP/LSPHoverPopover.swift"
+    "$APP_DIR/LSP/LSPInstaller.swift"
     "$APP_DIR/LSP/LSPDocumentSession.swift"
 )
 

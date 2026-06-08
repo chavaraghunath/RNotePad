@@ -165,16 +165,15 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
     private var lspSession: LSPDocumentSession?
 
     private func setupLSP(for lexer: String?, source: String) {
+        _ = lexer  // lexer kept in the signature for future hooks; LSP keys on URL extension
         // Close any prior session.
         lspSession?.close()
         lspSession = nil
-        guard let lex = lexer,
-              let doc = document,
+        guard let doc = document,
               let url = doc.fileURL else { return }
         let workspaceRoot = WorkspaceManager.shared.activeWorkspace.roots.first
             ?? url.deletingLastPathComponent()
         guard let session = LSPDocumentSession(documentURL: url,
-                                               lexerName: lex,
                                                workspaceRoot: workspaceRoot,
                                                sciView: sciView) else { return }
         session.start(initialText: source)
