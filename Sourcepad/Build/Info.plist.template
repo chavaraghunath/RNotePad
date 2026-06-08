@@ -57,6 +57,43 @@
             <key>NSDocumentClass</key>
             <string>SPTextDocument</string>
         </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Image</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.image</string>
+                <string>public.png</string>
+                <string>public.jpeg</string>
+                <string>com.compuserve.gif</string>
+                <string>com.microsoft.bmp</string>
+                <string>org.webmproject.webp</string>
+                <string>public.heic</string>
+                <string>public.heif</string>
+                <string>public.tiff</string>
+                <string>com.microsoft.ico</string>
+            </array>
+            <key>NSDocumentClass</key>
+            <string>SPTextDocument</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>SVG Document</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.svg-image</string>
+            </array>
+            <key>NSDocumentClass</key>
+            <string>SPTextDocument</string>
+        </dict>
     </array>
 </dict>
 </plist>
