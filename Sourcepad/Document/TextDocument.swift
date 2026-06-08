@@ -27,14 +27,85 @@ public final class TextDocument: NSDocument {
     /// Line endings detected from the file content on read.
     public var lineEndings: LineEndings = .lf
 
+    private var externalWatcher: ExternalChangeWatcher?
+
     public override init() {
         super.init()
         self.hasUndoManager = false  // Scintilla owns undo.
     }
 
     public override func close() {
+        externalWatcher?.stop()
+        externalWatcher = nil
         if let url = fileURL { ClosedTabHistory.shared.push(url) }
         super.close()
+    }
+
+    public override var fileURL: URL? {
+        didSet { restartExternalWatcher() }
+    }
+
+    private func restartExternalWatcher() {
+        externalWatcher?.stop()
+        externalWatcher = nil
+        guard let url = fileURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        externalWatcher = ExternalChangeWatcher(url: url) { [weak self] event in
+            self?.handleExternalEvent(event)
+        }
+        externalWatcher?.start()
+    }
+
+    private func handleExternalEvent(_ event: ExternalChangeWatcher.Event) {
+        let behavior = Preferences.shared.externalChangeBehavior
+        if behavior == .ignore { return }
+
+        switch event {
+        case .modified:
+            if behavior == .autoReload {
+                reloadFromDisk()
+                return
+            }
+            // Prompt the user. The OK button triggers reload.
+            let alert = NSAlert()
+            alert.messageText = "File changed on disk"
+            alert.informativeText = "\(fileURL?.lastPathComponent ?? "This file") has changed externally. Reload from disk?"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Reload")
+            alert.addButton(withTitle: "Keep Editing")
+            if let window = windowControllers.first?.window {
+                alert.beginSheetModal(for: window) { [weak self] response in
+                    if response == .alertFirstButtonReturn { self?.reloadFromDisk() }
+                }
+            } else if alert.runModal() == .alertFirstButtonReturn {
+                reloadFromDisk()
+            }
+        case .removed:
+            let alert = NSAlert()
+            alert.messageText = "File no longer exists"
+            alert.informativeText = "\(fileURL?.lastPathComponent ?? "This file") was deleted or renamed. Keep editing as an in-memory document?"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Keep")
+            alert.addButton(withTitle: "Close")
+            if let window = windowControllers.first?.window {
+                alert.beginSheetModal(for: window) { [weak self] response in
+                    if response == .alertSecondButtonReturn { self?.close() }
+                }
+            } else if alert.runModal() == .alertSecondButtonReturn {
+                close()
+            }
+            externalWatcher?.stop()
+        }
+    }
+
+    private func reloadFromDisk() {
+        guard let url = fileURL else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            try read(from: data, ofType: fileType ?? "public.plain-text")
+            updateChangeCount(.changeCleared)
+        } catch {
+            NSLog("[Sourcepad] reload-from-disk failed: \(error)")
+        }
     }
 
     public override class var autosavesInPlace: Bool { true }
@@ -121,6 +192,15 @@ public final class TextDocument: NSDocument {
     }
 
     public override func write(to url: URL, ofType typeName: String) throws {
+        // Suppress the inevitable .write VNODE event from our own save.
+        externalWatcher?.isPerformingSave = true
+        defer {
+            // Release the suppression on the next runloop turn so the kernel's
+            // VNODE notification has time to arrive and be dropped.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.externalWatcher?.isPerformingSave = false
+            }
+        }
         try super.write(to: url, ofType: typeName)
         // Tell Scintilla "this is now the clean state".
         primaryEditorViewController()?.markSavePoint()

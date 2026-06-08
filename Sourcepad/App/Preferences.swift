@@ -102,6 +102,18 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: Key.trimOnSave); notify() }
     }
 
+    public enum ExternalChangeBehavior: String {
+        case prompt, autoReload, ignore
+    }
+
+    public var externalChangeBehavior: ExternalChangeBehavior {
+        get {
+            let raw = defaults.string(forKey: "Sourcepad.externalChangeBehavior") ?? "prompt"
+            return ExternalChangeBehavior(rawValue: raw) ?? .prompt
+        }
+        set { defaults.set(newValue.rawValue, forKey: "Sourcepad.externalChangeBehavior"); notify() }
+    }
+
     private func notify() {
         NotificationCenter.default.post(name: .sourcepadPreferencesChanged, object: self)
     }
