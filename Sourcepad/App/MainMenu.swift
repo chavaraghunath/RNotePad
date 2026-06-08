@@ -119,9 +119,13 @@ public enum MainMenu {
         let findMenu = NSMenu(title: "Find")
         find.submenu = findMenu
 
+        // Cmd-F / Cmd-E both focus the toolbar search field.
         findMenu.addItem(withTitle: "Find…",
-                         action: Selector(("sourcepadShowFind:")),
+                         action: Selector(("sourcepadFocusToolbarSearch:")),
                          keyEquivalent: "f")
+        findMenu.addItem(withTitle: "Search (toolbar)",
+                         action: Selector(("sourcepadFocusToolbarSearch:")),
+                         keyEquivalent: "e")
         findMenu.addItem(withTitle: "Find and Replace…",
                          action: Selector(("sourcepadShowFindReplace:")),
                          keyEquivalent: "f").keyEquivalentModifierMask = [.command, .option]

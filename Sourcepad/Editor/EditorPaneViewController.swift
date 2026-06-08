@@ -163,24 +163,88 @@ public final class EditorPaneViewController: NSViewController {
     public func findBarNext()     { findBar.findNext(nil) }
     public func findBarPrevious() { findBar.findPrevious(nil) }
 
-    // Responder-chain entry points wired from MainMenu (nil-target items).
+    // MARK: - Quick find (driven by the toolbar search field)
 
-    @objc public func sourcepadShowFind(_ sender: Any?) {
-        showFindBar(prefill: nil, withReplace: false)
+    private var quickQuery: String = ""
+
+    /// Live-search from the toolbar: jump to the first match of `query`
+    /// starting at the current selection (wrapping to the top if nothing found).
+    public func quickFind(_ query: String) {
+        quickQuery = query
+        guard !query.isEmpty else { return }
+        let sel = SciGetSelectionBytes(sciView)
+        let start = sel.location == NSNotFound ? 0 : Int(sel.location)
+        if let r = matchOrWrap(from: start, query: query) {
+            SciSetSelectionBytes(sciView, Int(r.location), Int(r.location) + Int(r.length))
+        }
     }
+
+    /// Advance to the next or previous match of the last toolbar query.
+    public func quickFindAdvance(forward: Bool) {
+        guard !quickQuery.isEmpty else { return }
+        let sel = SciGetSelectionBytes(sciView)
+        if forward {
+            let from = sel.location == NSNotFound ? 0 : Int(sel.location) + Int(sel.length)
+            if let r = matchOrWrap(from: from, query: quickQuery) {
+                SciSetSelectionBytes(sciView, Int(r.location), Int(r.location) + Int(r.length))
+            }
+        } else {
+            let upper = sel.location == NSNotFound ? SciTextLengthBytes(sciView) : Int(sel.location)
+            if let r = lastMatchBefore(upper, query: quickQuery) {
+                SciSetSelectionBytes(sciView, Int(r.location), Int(r.location) + Int(r.length))
+            }
+        }
+    }
+
+    private func matchOrWrap(from start: Int, query: String) -> NSRange? {
+        let r = SciFind(sciView, query, SciFindFlags(rawValue: 0), start, -1)
+        if r.location != NSNotFound { return r }
+        let wrap = SciFind(sciView, query, SciFindFlags(rawValue: 0), 0, -1)
+        return wrap.location == NSNotFound ? nil : wrap
+    }
+
+    private func lastMatchBefore(_ upper: Int, query: String) -> NSRange? {
+        var pos = 0
+        var last: NSRange? = nil
+        while pos < upper {
+            let r = SciFind(sciView, query, SciFindFlags(rawValue: 0), pos, upper)
+            if r.location == NSNotFound { break }
+            last = r
+            pos = Int(r.location) + max(1, Int(r.length))
+        }
+        if last != nil { return last }
+        // Wrap: take the last match anywhere in the document.
+        pos = 0
+        let docLen = SciTextLengthBytes(sciView)
+        while pos < docLen {
+            let r = SciFind(sciView, query, SciFindFlags(rawValue: 0), pos, docLen)
+            if r.location == NSNotFound { break }
+            last = r
+            pos = Int(r.location) + max(1, Int(r.length))
+        }
+        return last
+    }
+
+    // Responder-chain entry points wired from MainMenu (nil-target items).
 
     @objc public func sourcepadShowFindReplace(_ sender: Any?) {
         showFindBar(prefill: nil, withReplace: true)
     }
 
     @objc public func sourcepadFindNext(_ sender: Any?) {
-        if !isFindBarVisible { showFindBar() }
-        findBarNext()
+        if !quickQuery.isEmpty {
+            quickFindAdvance(forward: true)
+        } else if isFindBarVisible {
+            findBarNext()
+        }
     }
 
     @objc public func sourcepadFindPrevious(_ sender: Any?) {
-        if !isFindBarVisible { showFindBar() }
-        findBarPrevious()
+        if !quickQuery.isEmpty {
+            quickFindAdvance(forward: false)
+        } else if isFindBarVisible {
+            findBarPrevious()
+        }
     }
 
     // MARK: - Light/dark hot-swap

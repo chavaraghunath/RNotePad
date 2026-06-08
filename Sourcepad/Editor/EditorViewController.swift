@@ -6,6 +6,8 @@ import AppKit
 
 public final class EditorViewController: NSSplitViewController {
 
+    private static let sidebarVisibleKey = "Sourcepad.sidebarVisible"
+
     public weak var document: TextDocument?
 
     public let sidebarPane: SidebarViewController
@@ -56,8 +58,9 @@ public final class EditorViewController: NSSplitViewController {
         addSplitViewItem(ei)
         addSplitViewItem(pi)
 
-        // Sidebar and preview start collapsed.
-        si.isCollapsed = true
+        // Sidebar visibility persists across launches; default = visible.
+        let sidebarVisible = UserDefaults.standard.object(forKey: Self.sidebarVisibleKey) as? Bool ?? true
+        si.isCollapsed = !sidebarVisible
         pi.isCollapsed = true
 
         // Sidebar opens files via NSDocumentController.
@@ -139,6 +142,7 @@ public final class EditorViewController: NSSplitViewController {
 
     public func toggleSidebar() {
         sidebarItem.animator().isCollapsed = !sidebarItem.isCollapsed
+        UserDefaults.standard.set(!sidebarItem.isCollapsed, forKey: Self.sidebarVisibleKey)
         view.window?.toolbar?.validateVisibleItems()
     }
 
