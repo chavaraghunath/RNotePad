@@ -33,6 +33,12 @@ public final class EditorViewController: NSViewController {
         root.addSubview(editor)
         self.sciView = editor
 
+        // Sits ABOVE the editor; only intercepts .fileURL drag types so plain
+        // text drags still reach Scintilla.
+        let dropOverlay = FileDropOverlay(frame: root.bounds)
+        dropOverlay.autoresizingMask = [.width, .height]
+        root.addSubview(dropOverlay)
+
         SciShowLineNumbers(editor, true)
         installNotificationHandler()
     }

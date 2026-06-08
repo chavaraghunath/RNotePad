@@ -3,6 +3,11 @@
 
 import AppKit
 
+// Instantiate our subclassed NSDocumentController BEFORE NSApplication.shared
+// is accessed, so it becomes the shared instance (NSDocumentController claims
+// the shared slot on first init).
+_ = DocumentController()
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

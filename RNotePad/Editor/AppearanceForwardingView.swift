@@ -29,19 +29,23 @@ final class AppearanceForwardingView: NSView {
     // MARK: - Drag and drop
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        DebugLog.log("AppearanceForwardingView.draggingEntered")
         guard sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: nil) else {
+            DebugLog.log("  pasteboard has no NSURL — rejecting")
             return []
         }
         return .copy
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        DebugLog.log("AppearanceForwardingView.performDragOperation")
         guard let items = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: nil),
               let urls = items as? [URL], !urls.isEmpty else { return false }
         let dc = NSDocumentController.shared
         for url in urls {
+            DebugLog.log("  drag-open: \(url.path)")
             dc.openDocument(withContentsOf: url, display: true) { _, _, error in
-                if let error { NSLog("[RNotePad] drag-open failed: \(url.path) — \(error)") }
+                if let error { DebugLog.log("  drag-open failed: \(url.path) — \(error)") }
             }
         }
         return true
