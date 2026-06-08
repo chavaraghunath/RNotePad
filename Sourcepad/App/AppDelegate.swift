@@ -114,4 +114,31 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc public func sourcepadGoToSymbol(_ sender: Any?) {
         PaletteWindowController.shared.present(provider: SymbolPaletteProvider())
     }
+
+    // MARK: - View > Open As (Phase 4)
+    //
+    // Sets EditorContentFactory.nextOpenOverride and re-opens the current
+    // document. The factory consumes the override and resets it so the
+    // next file picks up its default view again.
+
+    @objc public func sourcepadReopenAs(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+              let raw = item.representedObject as? String,
+              let mode = EditorContentMode(rawValue: raw) else {
+            NSSound.beep(); return
+        }
+        guard let doc = NSDocumentController.shared.currentDocument as? TextDocument,
+              let url = doc.fileURL else {
+            NSSound.beep(); return
+        }
+        EditorContentFactory.nextOpenOverride = mode
+
+        // Close the current document and re-open the same URL. NSDocument's
+        // built-in flow handles the user-confirmation if the buffer is
+        // dirty; for placeholders the buffer is read-only anyway.
+        doc.close()
+        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+            if let error { NSLog("[Sourcepad] reopen-as failed: \(error)") }
+        }
+    }
 }

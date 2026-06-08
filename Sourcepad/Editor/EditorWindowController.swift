@@ -52,8 +52,10 @@ public final class EditorWindowController: NSWindowController,
             guard let self else { return event }
             // Only act on events targeting our window.
             guard event.window === self.window else { return event }
-            // Skip if the first responder is the toolbar search or any non-editor field.
-            let editorPaneView = self.editorViewController.editorPane.view
+            // Auto-pair only applies to the Scintilla path; non-text view
+            // modes (placeholder / future grid / tree / hex) opt out.
+            guard let pane = self.editorViewController.editorPane else { return event }
+            let editorPaneView = pane.view
             guard let responder = self.window?.firstResponder as? NSView else { return event }
             guard responder === editorPaneView || responder.isDescendant(of: editorPaneView) else {
                 return event
@@ -64,7 +66,7 @@ public final class EditorWindowController: NSWindowController,
                   let first = chars.first,
                   AutoPair.pairs[first] != nil || AutoPair.closers.contains(first)
             else { return event }
-            if self.editorViewController.editorPane.tryAutoPair(character: first) {
+            if pane.tryAutoPair(character: first) {
                 return nil  // consume — we did the insert via the bridge
             }
             return event
@@ -221,22 +223,25 @@ public final class EditorWindowController: NSWindowController,
     }
 
     @objc private func searchSubmitted(_ sender: NSSearchField) {
-        // Enter in the search field → advance to next match.
-        editorViewController.editorPane.quickFindAdvance(forward: true)
+        // Enter in the search field → advance to next match. Only meaningful
+        // in the Scintilla path; placeholder content has nothing to find.
+        editorViewController.editorPane?.quickFindAdvance(forward: true)
     }
 
     // MARK: - NSSearchFieldDelegate / NSControl
 
     public func controlTextDidChange(_ obj: Notification) {
         guard let field = obj.object as? NSSearchField, field === searchField else { return }
-        editorViewController.editorPane.quickFind(field.stringValue)
+        editorViewController.editorPane?.quickFind(field.stringValue)
     }
 
     public func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
         if control === searchField {
             if selector == #selector(cancelOperation(_:)) {
                 searchField?.stringValue = ""
-                window?.makeFirstResponder(editorViewController.editorPane.view)
+                if let paneView = editorViewController.editorPane?.view {
+                    window?.makeFirstResponder(paneView)
+                }
                 return true
             }
         }

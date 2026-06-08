@@ -171,8 +171,8 @@ public final class TextDocument: NSDocument {
             working = TextDocument.trimTrailingLineWhitespace(working)
             // Push trimmed back to the editor so the visible buffer matches the file.
             if let editor = primaryEditorViewController(),
-               editor.editorPane.currentText != working {
-                editor.editorPane.replaceWholeBuffer(with: working)
+               editor.editorContent.currentText != working {
+                editor.editorContent.replaceWholeBuffer(with: working)
                 self.contents = working
             }
         }

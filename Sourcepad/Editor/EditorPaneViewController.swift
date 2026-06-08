@@ -4,7 +4,7 @@
 
 import AppKit
 
-public final class EditorPaneViewController: NSViewController {
+public final class EditorPaneViewController: NSViewController, EditorContent {
 
     public weak var document: TextDocument?
     public var onTextChanged: (() -> Void)?
@@ -195,6 +195,26 @@ public final class EditorPaneViewController: NSViewController {
     }
 
     public var activeLexer: String? { currentLexer }
+
+    // MARK: - EditorContent conformance (Phase 4)
+
+    /// The NSView our container installs as the document region.
+    public var contentView: NSView { view }
+
+    /// Caret + selection info for the status bar.
+    public var caretInfo: EditorCaretInfo {
+        EditorCaretInfo(
+            line0Based: currentCursorLine,
+            column0Based: currentCursorColumn,
+            byteOffset: currentCaretByte(),
+            lineCount: currentLineCount,
+            bufferByteCount: currentBufferByteCount,
+            selectionByteCount: currentSelectionByteCount)
+    }
+
+    /// Scintilla path always offers a preview opportunity; the preview
+    /// pane decides whether to render based on filename / lexer.
+    public var supportsPreview: Bool { true }
 
     /// Debug helper: dump the first `maxBytes` of the buffer with their style indices.
     public func dumpStyles(maxBytes: Int) -> String {

@@ -341,6 +341,27 @@ public enum MainMenu {
                                     keyEquivalent: "t")
         viewMenu.addItem(gotoSymbol)
 
+        // View > Open As (Phase 4 — placeholders today; real views in 14–17)
+        let openAs = NSMenuItem(title: "Open As", action: nil, keyEquivalent: "")
+        let openAsMenu = NSMenu(title: "Open As")
+        openAs.submenu = openAsMenu
+        for (title, mode) in [
+            ("Text",            "text"),
+            ("Grid (CSV)",      "grid"),
+            ("Tree (JSON/YAML)", "tree"),
+            ("SQLite Browser",  "sqlite"),
+            ("Hex",             "hex"),
+            ("Font Preview",    "font"),
+            ("PDF Preview",     "pdf"),
+        ] {
+            let item = NSMenuItem(title: title,
+                                  action: Selector(("sourcepadReopenAs:")),
+                                  keyEquivalent: "")
+            item.representedObject = mode
+            openAsMenu.addItem(item)
+        }
+        viewMenu.addItem(openAs)
+
         viewMenu.addItem(.separator())
         let inspectItem = NSMenuItem(title: "Inspect Lexer Styles → /tmp/sourcepad.log",
                                      action: #selector(InspectMenuTarget.inspect(_:)),
@@ -493,9 +514,8 @@ enum LanguageMenu {
 
     @objc func inspect(_ sender: NSMenuItem) {
         guard let editor = activeEditor() else { NSSound.beep(); return }
-        let pane = editor.editorPane
-        // Reach into the pane to grab its sciView via Mirror — keeping the
-        // bridge boundary clean. Simpler: expose a small accessor on the pane.
+        // Inspect only meaningful for the Scintilla path.
+        guard let pane = editor.editorPane else { NSSound.beep(); return }
         let dump = pane.dumpStyles(maxBytes: 4000)
         DebugLog.log("---- lexer style dump for \(editor.activeLexer ?? "plain") ----\n\(dump)\n---- end dump ----")
         let alert = NSAlert()

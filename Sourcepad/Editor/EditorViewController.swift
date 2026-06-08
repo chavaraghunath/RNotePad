@@ -11,7 +11,15 @@ public final class EditorViewController: NSSplitViewController {
     public weak var document: TextDocument?
 
     public let sidebarPane: SidebarViewController
-    public let editorPane: EditorPaneViewController
+    /// Generic content interface — every editor variant exposes this.
+    /// Phase 4 carved out the protocol so view modes can swap in later
+    /// phases. Today the only concrete types are EditorPaneViewController
+    /// (Scintilla) and PlaceholderContent (View > Open As stubs).
+    public let editorContent: EditorContent
+    /// Scintilla-specific facet, nil when the content is a non-Scintilla
+    /// view mode. Existing call sites (StatusBarView, FindBar wiring,
+    /// auto-pair) keep working through this typed reference.
+    public let editorPane: EditorPaneViewController?
     public let previewPane: PreviewPaneViewController
 
     private let sidebarItem: NSSplitViewItem
@@ -24,10 +32,11 @@ public final class EditorViewController: NSSplitViewController {
         self.document = document
 
         let sp = SidebarViewController()
-        let ep = EditorPaneViewController(document: document)
+        let content = EditorContentFactory.makeContent(for: document)
         let pp = PreviewPaneViewController()
         self.sidebarPane = sp
-        self.editorPane = ep
+        self.editorContent = content
+        self.editorPane = content as? EditorPaneViewController
         self.previewPane = pp
 
         let si = NSSplitViewItem(sidebarWithViewController: sp)
@@ -38,7 +47,11 @@ public final class EditorViewController: NSSplitViewController {
         si.holdingPriority = NSLayoutConstraint.Priority(270)
         self.sidebarItem = si
 
-        let ei = NSSplitViewItem(viewController: ep)
+        // The factory returns an NSViewController (EditorContent's view is
+        // its NSView); pick the appropriate NSSplitViewItem constructor.
+        let contentVC: NSViewController = (content as? NSViewController)
+            ?? NSViewController()  // unreachable for current conformers
+        let ei = NSSplitViewItem(viewController: contentVC)
         ei.minimumThickness = 320
         ei.holdingPriority = NSLayoutConstraint.Priority(250)
         self.editorItem = ei
@@ -71,7 +84,9 @@ public final class EditorViewController: NSSplitViewController {
         }
 
         // When the editor's text changes, debounce a preview re-render.
-        ep.onTextChanged = { [weak self] in
+        // EditorContent is a class-bound protocol; binding `onTextChanged`
+        // on a `let` reference mutates the underlying instance.
+        content.onTextChanged = { [weak self] in
             self?.schedulePreviewRender(immediate: false)
         }
     }
@@ -82,7 +97,7 @@ public final class EditorViewController: NSSplitViewController {
 
     public override func viewDidLoad() {
         super.viewDidLoad()
-        editorPane.documentContentsDidLoad()
+        editorContent.documentContentsDidLoad()
         // Default sidebar root = enclosing folder of the document.
         if let url = document?.fileURL {
             sidebarPane.setRoot(url.deletingLastPathComponent())
@@ -102,30 +117,33 @@ public final class EditorViewController: NSSplitViewController {
         view.window?.toolbar?.validateVisibleItems()
     }
 
-    // MARK: - Methods proxied to the editor pane (used by NSDocument flow)
+    // MARK: - Methods proxied to the editor content (used by NSDocument flow)
 
     public func documentContentsDidLoad() {
-        editorPane.documentContentsDidLoad()
+        editorContent.documentContentsDidLoad()
         if !previewItem.isCollapsed { schedulePreviewRender(immediate: true) }
         view.window?.toolbar?.validateVisibleItems()
     }
 
-    public var currentText: String { editorPane.currentText }
-    public func markSavePoint() { editorPane.markSavePoint() }
-    public func currentCaretByte() -> Int { editorPane.currentCaretByte() }
+    public var currentText: String { editorContent.currentText }
+    public func markSavePoint() { editorContent.markSavePoint() }
+    public func currentCaretByte() -> Int { editorContent.currentCaretByte() }
     public func setLexer(_ name: String?) {
-        editorPane.setLexer(name)
+        editorContent.setLexer(name)
         if !previewItem.isCollapsed { schedulePreviewRender(immediate: true) }
     }
-    public var activeLexer: String? { editorPane.activeLexer }
+    public var activeLexer: String? { editorContent.activeLexer }
 
     // MARK: - Preview toggle
 
     public var canShowPreview: Bool {
         guard let doc = document else { return false }
+        // Non-text content (placeholder, future grid/tree/hex) is its own
+        // view — it doesn't get a side preview pane.
+        guard editorContent.supportsPreview else { return false }
         return PreviewRenderer.kind(
             forFilename: doc.fileURL?.lastPathComponent ?? "",
-            fallbackLexer: editorPane.activeLexer
+            fallbackLexer: editorContent.activeLexer
         ) != nil
     }
 
@@ -192,8 +210,8 @@ public final class EditorViewController: NSSplitViewController {
     private func renderPreviewNow() {
         guard !previewItem.isCollapsed else { return }
         let filename = document?.fileURL?.lastPathComponent ?? ""
-        guard let kind = PreviewRenderer.kind(forFilename: filename, fallbackLexer: editorPane.activeLexer) else { return }
-        let source = editorPane.currentText
+        guard let kind = PreviewRenderer.kind(forFilename: filename, fallbackLexer: editorContent.activeLexer) else { return }
+        let source = editorContent.currentText
         let baseURL = document?.fileURL?.deletingLastPathComponent()
         let isDark = ThemeMode.from(view.effectiveAppearance) == .dark
         previewPane.render(source: source, kind: kind, baseURL: baseURL, isDark: isDark,
