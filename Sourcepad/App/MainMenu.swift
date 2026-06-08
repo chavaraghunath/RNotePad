@@ -168,6 +168,39 @@ public enum MainMenu {
         sidebarItem.keyEquivalentModifierMask = [.command]
         viewMenu.addItem(sidebarItem)
 
+        viewMenu.addItem(.separator())
+        // Zoom group: Cmd-+ / Cmd-- / Cmd-0 (Apple-standard).
+        // Cmd-0 also toggles sidebar above; we use Cmd-Shift-0 for Actual Size
+        // to avoid the conflict, matching Safari / Mail.
+        let zoomIn = NSMenuItem(title: "Zoom In",
+                                action: Selector(("sourcepadZoomIn:")),
+                                keyEquivalent: "+")
+        zoomIn.keyEquivalentModifierMask = [.command]
+        viewMenu.addItem(zoomIn)
+        let zoomOut = NSMenuItem(title: "Zoom Out",
+                                 action: Selector(("sourcepadZoomOut:")),
+                                 keyEquivalent: "-")
+        zoomOut.keyEquivalentModifierMask = [.command]
+        viewMenu.addItem(zoomOut)
+        let zoomReset = NSMenuItem(title: "Actual Size",
+                                   action: Selector(("sourcepadZoomReset:")),
+                                   keyEquivalent: "0")
+        zoomReset.keyEquivalentModifierMask = [.command, .shift]
+        viewMenu.addItem(zoomReset)
+
+        viewMenu.addItem(.separator())
+        let wrap = NSMenuItem(title: "Word Wrap",
+                              action: Selector(("sourcepadToggleWordWrap:")),
+                              keyEquivalent: "w")
+        wrap.keyEquivalentModifierMask = [.command, .option]
+        viewMenu.addItem(wrap)
+        viewMenu.addItem(withTitle: "Indent Guides",
+                         action: Selector(("sourcepadToggleIndentGuides:")),
+                         keyEquivalent: "")
+        viewMenu.addItem(withTitle: "Show Invisibles",
+                         action: Selector(("sourcepadToggleShowInvisibles:")),
+                         keyEquivalent: "")
+
         let previewItem = NSMenuItem(title: "Toggle Preview",
                                      action: #selector(PreviewMenuTarget.showPreview(_:)),
                                      keyEquivalent: "p")

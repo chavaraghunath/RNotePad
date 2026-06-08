@@ -97,6 +97,11 @@ public final class EditorPaneViewController: NSViewController {
         SciSetTabWidth(sciView, p.tabWidth)
         SciSetUseTabs(sciView, !p.useSpacesForTabs)
         SciShowLineNumbers(sciView, p.showLineNumbers)
+        SciSetWrapMode(sciView, p.wordWrap ? .word : .none)
+        SciSetZoom(sciView, p.zoomLevel)
+        SciSetIndentGuides(sciView, p.indentGuides ? .lookBoth : .none)
+        SciSetViewWhitespace(sciView, p.showInvisibles ? .visibleAlways : .invisible)
+        SciSetViewEOL(sciView, p.showEOL)
     }
 
     public override func viewDidAppear() {
@@ -111,7 +116,8 @@ public final class EditorPaneViewController: NSViewController {
         SciSetText(sciView, doc.contents)
 
         let filename = doc.fileURL?.lastPathComponent ?? "untitled.txt"
-        let lexerName = LexerRegistry.lexer(for: filename)
+        // Filename → lexer first; if that fails, fall back to shebang detection.
+        let lexerName = LexerRegistry.lexer(for: filename) ?? doc.shebangLexer
         currentLexer = lexerName
         _ = SciApplyLexer(sciView, lexerName)
         applyColorScheme()
@@ -264,6 +270,10 @@ public final class EditorPaneViewController: NSViewController {
             scheme.lineNumberFg,
             scheme.lineNumberBg
         )
+        // Apply non-token style colors (brace match, indent guides, whitespace).
+        SciSetBraceStyles(sciView, scheme.braceLightFg, scheme.braceLightBg, scheme.braceBadFg)
+        SciSetIndentGuideColor(sciView, scheme.indentGuideFg)
+        SciSetWhitespaceColors(sciView, scheme.whitespaceFg, nil)
         if let lex = currentLexer {
             _ = SciApplyLexer(sciView, lex)
             // Lexilla's hypertext lexer doesn't sub-lex CSS — post-process to
@@ -286,9 +296,47 @@ public final class EditorPaneViewController: NSViewController {
                 self.document?.updateChangeCount(.changeDone)
             case .modified:
                 self.onTextChanged?()
+            case .updateUI:
+                SciUpdateBraceMatch(self.sciView)
+                NotificationCenter.default.post(name: .sourcepadEditorUIDidUpdate, object: self)
             default:
                 break
             }
         }
     }
+
+    // MARK: - View options (menu actions)
+
+    @objc public func sourcepadToggleWordWrap(_ sender: Any?) {
+        Preferences.shared.wordWrap.toggle()
+    }
+
+    @objc public func sourcepadToggleIndentGuides(_ sender: Any?) {
+        Preferences.shared.indentGuides.toggle()
+    }
+
+    @objc public func sourcepadToggleShowInvisibles(_ sender: Any?) {
+        let newValue = !Preferences.shared.showInvisibles
+        Preferences.shared.showInvisibles = newValue
+        // EOL markers paired with whitespace visibility for clarity.
+        Preferences.shared.showEOL = newValue
+    }
+
+    @objc public func sourcepadZoomIn(_ sender: Any?) {
+        Preferences.shared.zoomLevel = SciGetZoom(sciView) + 1
+    }
+
+    @objc public func sourcepadZoomOut(_ sender: Any?) {
+        Preferences.shared.zoomLevel = SciGetZoom(sciView) - 1
+    }
+
+    @objc public func sourcepadZoomReset(_ sender: Any?) {
+        Preferences.shared.zoomLevel = 0
+    }
+}
+
+public extension Notification.Name {
+    /// Posted whenever Scintilla sends SCN_UPDATEUI (caret/selection/content
+    /// changed). Status bar / outline pane / autocomplete observe this.
+    static let sourcepadEditorUIDidUpdate = Notification.Name("SourcepadEditorUIDidUpdate")
 }

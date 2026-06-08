@@ -23,6 +23,12 @@ public final class Preferences {
         static let tabWidth     = "Sourcepad.editorTabWidth"
         static let showLineNumbers = "Sourcepad.showLineNumbers"
         static let useSpaces    = "Sourcepad.useSpacesForTabs"
+        static let wordWrap     = "Sourcepad.wordWrap"
+        static let zoomLevel    = "Sourcepad.zoomLevel"
+        static let indentGuides = "Sourcepad.indentGuides"
+        static let showInvisibles = "Sourcepad.showInvisibles"
+        static let showEOL      = "Sourcepad.showEOL"
+        static let trimOnSave   = "Sourcepad.trimTrailingWhitespaceOnSave"
     }
 
     private init() {
@@ -32,6 +38,12 @@ public final class Preferences {
             Key.tabWidth: 4,
             Key.showLineNumbers: true,
             Key.useSpaces: true,
+            Key.wordWrap: false,
+            Key.zoomLevel: 0,
+            Key.indentGuides: true,
+            Key.showInvisibles: false,
+            Key.showEOL: false,
+            Key.trimOnSave: false,
         ])
     }
 
@@ -58,6 +70,36 @@ public final class Preferences {
     public var useSpacesForTabs: Bool {
         get { defaults.bool(forKey: Key.useSpaces) }
         set { defaults.set(newValue, forKey: Key.useSpaces); notify() }
+    }
+
+    public var wordWrap: Bool {
+        get { defaults.bool(forKey: Key.wordWrap) }
+        set { defaults.set(newValue, forKey: Key.wordWrap); notify() }
+    }
+
+    public var zoomLevel: Int {
+        get { defaults.integer(forKey: Key.zoomLevel) }
+        set { defaults.set(max(-10, min(50, newValue)), forKey: Key.zoomLevel); notify() }
+    }
+
+    public var indentGuides: Bool {
+        get { defaults.bool(forKey: Key.indentGuides) }
+        set { defaults.set(newValue, forKey: Key.indentGuides); notify() }
+    }
+
+    public var showInvisibles: Bool {
+        get { defaults.bool(forKey: Key.showInvisibles) }
+        set { defaults.set(newValue, forKey: Key.showInvisibles); notify() }
+    }
+
+    public var showEOL: Bool {
+        get { defaults.bool(forKey: Key.showEOL) }
+        set { defaults.set(newValue, forKey: Key.showEOL); notify() }
+    }
+
+    public var trimTrailingWhitespaceOnSave: Bool {
+        get { defaults.bool(forKey: Key.trimOnSave) }
+        set { defaults.set(newValue, forKey: Key.trimOnSave); notify() }
     }
 
     private func notify() {

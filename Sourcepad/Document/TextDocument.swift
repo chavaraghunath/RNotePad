@@ -16,6 +16,10 @@ public final class TextDocument: NSDocument {
     /// True if the file had a UTF-8 BOM.
     public var hasUTF8BOM: Bool = false
 
+    /// Lexer name deduced from the file's shebang line (if present).
+    /// Used as a fallback when the filename gives no hint.
+    public var shebangLexer: String?
+
     public override init() {
         super.init()
         self.hasUndoManager = false  // Scintilla owns undo.
@@ -37,6 +41,7 @@ public final class TextDocument: NSDocument {
         self.contents = text
         self.encoding = enc
         self.hasUTF8BOM = bom
+        self.shebangLexer = TextDocument.detectShebangLexer(from: text)
         // Push to the editor if it's already loaded.
         if let editor = primaryEditorViewController() {
             editor.documentContentsDidLoad()
@@ -102,5 +107,41 @@ public final class TextDocument: NSDocument {
         }
         // ISO Latin-1 is single-byte; can't fail.
         return (String(data: data, encoding: .isoLatin1) ?? "", .isoLatin1, false)
+    }
+
+    /// Inspect the first line for `#!…/interpreter` and map to a Lexilla lexer.
+    /// Returns nil if no shebang or no known interpreter.
+    static func detectShebangLexer(from text: String) -> String? {
+        guard text.hasPrefix("#!") else { return nil }
+        let firstLine = text.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? text
+        let lower = firstLine.lowercased()
+        // The interpreter token is usually the final path component after the
+        // last "/" or after "env ".
+        let interp: String
+        if let envRange = lower.range(of: "env ") {
+            interp = String(lower[envRange.upperBound...])
+                .split(whereSeparator: { $0 == " " || $0 == "\t" }).first.map(String.init) ?? ""
+        } else if let slash = lower.lastIndex(of: "/") {
+            interp = String(lower[lower.index(after: slash)...])
+                .split(whereSeparator: { $0 == " " || $0 == "\t" }).first.map(String.init) ?? ""
+        } else {
+            return nil
+        }
+        // Strip trailing version digits ("python3" → "python").
+        let base = interp.trimmingCharacters(in: .decimalDigits)
+        switch base {
+        case "python", "pypy":               return "python"
+        case "bash", "sh", "zsh", "ksh", "ash", "dash":
+                                              return "bash"
+        case "node", "deno", "bun":          return "cpp"        // we use cpp for JS
+        case "ruby":                          return "ruby"
+        case "perl":                          return "perl"
+        case "lua":                           return "lua"
+        case "php":                           return "phpscript"
+        case "tcl", "wish", "expect":        return "tcl"
+        case "fish":                          return "bash"
+        case "powershell", "pwsh":           return "powershell"
+        default:                              return nil
+        }
     }
 }

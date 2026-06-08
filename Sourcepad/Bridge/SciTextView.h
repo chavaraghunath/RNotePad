@@ -19,6 +19,8 @@ typedef NS_ENUM(int, SciNotification) {
     SciNotificationSavePointLeft   = 2003,
     SciNotificationFocusIn         = 2028,
     SciNotificationFocusOut        = 2029,
+    SciNotificationUpdateUI        = 2007,
+    SciNotificationMarginClick     = 2010,
 };
 
 // MARK: - View
@@ -144,6 +146,59 @@ NSInteger SciReplaceBytesRange(NSView *view,
 /// Group subsequent edits into a single undo step. Must be balanced.
 void SciBeginUndoAction(NSView *view);
 void SciEndUndoAction(NSView *view);
+
+// MARK: - View options (wrap, zoom, indent guides, whitespace, brace match)
+
+typedef NS_ENUM(int, SciWrapMode) {
+    SciWrapNone       = 0,   // SC_WRAP_NONE
+    SciWrapWord       = 1,   // SC_WRAP_WORD
+    SciWrapChar       = 2,   // SC_WRAP_CHAR
+    SciWrapWhitespace = 3,   // SC_WRAP_WHITESPACE
+};
+
+typedef NS_ENUM(int, SciIndentGuides) {
+    SciIndentGuidesNone        = 0,   // SC_IV_NONE
+    SciIndentGuidesReal        = 1,   // SC_IV_REAL
+    SciIndentGuidesLookForward = 2,   // SC_IV_LOOKFORWARD
+    SciIndentGuidesLookBoth    = 3,   // SC_IV_LOOKBOTH
+};
+
+typedef NS_ENUM(int, SciWhitespaceMode) {
+    SciWhitespaceInvisible          = 0,   // SCWS_INVISIBLE
+    SciWhitespaceVisibleAlways      = 1,   // SCWS_VISIBLEALWAYS
+    SciWhitespaceVisibleAfterIndent = 2,   // SCWS_VISIBLEAFTERINDENT
+    SciWhitespaceVisibleOnlyInIndent = 3,  // SCWS_VISIBLEONLYININDENT
+};
+
+void SciSetWrapMode(NSView *view, SciWrapMode mode);
+
+void SciZoomIn(NSView *view);
+void SciZoomOut(NSView *view);
+void SciSetZoom(NSView *view, NSInteger level);
+NSInteger SciGetZoom(NSView *view);
+
+void SciSetIndentGuides(NSView *view, SciIndentGuides mode);
+void SciSetIndentGuideColor(NSView *view, NSColor *color);
+
+void SciSetViewWhitespace(NSView *view, SciWhitespaceMode mode);
+void SciSetViewEOL(NSView *view, BOOL visible);
+void SciSetWhitespaceColors(NSView *view, NSColor *fg, NSColor * _Nullable bg);
+
+/// Update brace-match highlighting based on the caret position.
+/// If caret sits next to a brace, find its match and call SCI_BRACEHIGHLIGHT.
+/// If no match, call SCI_BRACEBADLIGHT. Pass -1 to clear.
+void SciUpdateBraceMatch(NSView *view);
+
+/// Configure the colors used for STYLE_BRACELIGHT (good match) and
+/// STYLE_BRACEBAD (no match). Call once when applying a color scheme.
+void SciSetBraceStyles(NSView *view, NSColor *goodFg, NSColor *goodBg, NSColor *badFg);
+
+// MARK: - Cursor / line info (for status bar, go-to-line, etc.)
+
+NSInteger SciGetCurrentLine(NSView *view);   // 0-based
+NSInteger SciGetCurrentColumn(NSView *view); // 0-based, columns (tabs expand)
+NSInteger SciGetLineCount(NSView *view);
+void      SciGoToLine(NSView *view, NSInteger line1Based);
 
 #ifdef __cplusplus
 }

@@ -290,7 +290,8 @@ BOOL SciIsModified(NSView *view) {
     if (!self.handler) return;
     int code = scn->nmhdr.code;
     if (code == SCN_MODIFIED || code == SCN_SAVEPOINTREACHED || code == SCN_SAVEPOINTLEFT
-        || code == SCN_FOCUSIN || code == SCN_FOCUSOUT) {
+        || code == SCN_FOCUSIN || code == SCN_FOCUSOUT
+        || code == SCN_UPDATEUI || code == SCN_MARGINCLICK) {
         SciNotification typed = (SciNotification)code;
         dispatch_async(dispatch_get_main_queue(), ^{
             if (self.handler) self.handler(typed);
@@ -434,4 +435,122 @@ void SciSetCustomStyleUTF16(NSView *view, NSInteger utf16Start, NSInteger utf16L
 
     [v message:SCI_STARTSTYLING wParam:(uptr_t)byteStart lParam:0];
     [v message:SCI_SETSTYLING   wParam:(uptr_t)byteLength lParam:(sptr_t)style];
+}
+
+// MARK: - View options
+
+void SciSetWrapMode(NSView *view, SciWrapMode mode) {
+    [(ScintillaView *)view message:SCI_SETWRAPMODE wParam:(uptr_t)mode lParam:0];
+}
+
+void SciZoomIn(NSView *view) {
+    [(ScintillaView *)view message:SCI_ZOOMIN];
+}
+
+void SciZoomOut(NSView *view) {
+    [(ScintillaView *)view message:SCI_ZOOMOUT];
+}
+
+void SciSetZoom(NSView *view, NSInteger level) {
+    // Scintilla clamps to roughly [-10, +50] internally.
+    [(ScintillaView *)view message:SCI_SETZOOM wParam:(uptr_t)level lParam:0];
+}
+
+NSInteger SciGetZoom(NSView *view) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_GETZOOM];
+}
+
+void SciSetIndentGuides(NSView *view, SciIndentGuides mode) {
+    [(ScintillaView *)view message:SCI_SETINDENTATIONGUIDES wParam:(uptr_t)mode lParam:0];
+}
+
+void SciSetIndentGuideColor(NSView *view, NSColor *color) {
+    [(ScintillaView *)view setColorProperty:SCI_STYLESETFORE parameter:STYLE_INDENTGUIDE value:color];
+}
+
+void SciSetViewWhitespace(NSView *view, SciWhitespaceMode mode) {
+    [(ScintillaView *)view message:SCI_SETVIEWWS wParam:(uptr_t)mode lParam:0];
+}
+
+void SciSetViewEOL(NSView *view, BOOL visible) {
+    [(ScintillaView *)view message:SCI_SETVIEWEOL wParam:(uptr_t)(visible ? 1 : 0) lParam:0];
+}
+
+void SciSetWhitespaceColors(NSView *view, NSColor *fg, NSColor *bg) {
+    ScintillaView *v = (ScintillaView *)view;
+    if (fg) [v setColorProperty:SCI_SETWHITESPACEFORE parameter:1 value:fg];
+    if (bg) [v setColorProperty:SCI_SETWHITESPACEBACK parameter:1 value:bg];
+}
+
+void SciSetBraceStyles(NSView *view, NSColor *goodFg, NSColor *goodBg, NSColor *badFg) {
+    ScintillaView *v = (ScintillaView *)view;
+    if (goodFg) [v setColorProperty:SCI_STYLESETFORE parameter:STYLE_BRACELIGHT value:goodFg];
+    if (goodBg) [v setColorProperty:SCI_STYLESETBACK parameter:STYLE_BRACELIGHT value:goodBg];
+    if (badFg)  [v setColorProperty:SCI_STYLESETFORE parameter:STYLE_BRACEBAD  value:badFg];
+    // Bold for emphasis at the match.
+    [v setGeneralProperty:SCI_STYLESETBOLD parameter:STYLE_BRACELIGHT value:1];
+    [v setGeneralProperty:SCI_STYLESETBOLD parameter:STYLE_BRACEBAD  value:1];
+}
+
+static BOOL isBraceChar(int ch) {
+    return ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}';
+}
+
+void SciUpdateBraceMatch(NSView *view) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t pos = [v message:SCI_GETCURRENTPOS];
+    sptr_t len = [v message:SCI_GETLENGTH];
+
+    // Check the character at caret AND the one before — we want braces on
+    // either side to highlight (matches Notepad++ behaviour).
+    sptr_t bracePos = -1;
+    if (pos < len) {
+        int ch = (int)[v message:SCI_GETCHARAT wParam:(uptr_t)pos lParam:0];
+        if (isBraceChar(ch)) bracePos = pos;
+    }
+    if (bracePos < 0 && pos > 0) {
+        int ch = (int)[v message:SCI_GETCHARAT wParam:(uptr_t)(pos - 1) lParam:0];
+        if (isBraceChar(ch)) bracePos = pos - 1;
+    }
+
+    if (bracePos < 0) {
+        [v message:SCI_BRACEHIGHLIGHT wParam:(uptr_t)-1 lParam:-1];
+        return;
+    }
+    sptr_t match = [v message:SCI_BRACEMATCH wParam:(uptr_t)bracePos lParam:0];
+    if (match < 0) {
+        [v message:SCI_BRACEBADLIGHT wParam:(uptr_t)bracePos lParam:0];
+    } else {
+        [v message:SCI_BRACEHIGHLIGHT wParam:(uptr_t)bracePos lParam:(sptr_t)match];
+    }
+}
+
+// MARK: - Cursor / line info
+
+NSInteger SciGetCurrentLine(NSView *view) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t pos = [v message:SCI_GETCURRENTPOS];
+    return (NSInteger)[v message:SCI_LINEFROMPOSITION wParam:(uptr_t)pos lParam:0];
+}
+
+NSInteger SciGetCurrentColumn(NSView *view) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t pos = [v message:SCI_GETCURRENTPOS];
+    return (NSInteger)[v message:SCI_GETCOLUMN wParam:(uptr_t)pos lParam:0];
+}
+
+NSInteger SciGetLineCount(NSView *view) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_GETLINECOUNT];
+}
+
+void SciGoToLine(NSView *view, NSInteger line1Based) {
+    ScintillaView *v = (ScintillaView *)view;
+    NSInteger total = (NSInteger)[v message:SCI_GETLINECOUNT];
+    if (total <= 0) return;
+    NSInteger line = line1Based - 1;        // convert to 0-based
+    if (line < 0) line = 0;
+    if (line >= total) line = total - 1;
+    sptr_t pos = [v message:SCI_POSITIONFROMLINE wParam:(uptr_t)line lParam:0];
+    [v message:SCI_GOTOPOS wParam:(uptr_t)pos lParam:0];
+    [v message:SCI_SCROLLCARET];
 }

@@ -22,6 +22,11 @@ public struct ColorScheme {
     public let lineNumberFg: NSColor
     public let lineNumberBg: NSColor
     public let styles: [Int: StyleAttrs]
+    public let braceLightFg: NSColor
+    public let braceLightBg: NSColor
+    public let braceBadFg: NSColor
+    public let indentGuideFg: NSColor
+    public let whitespaceFg: NSColor
 
     public struct StyleAttrs {
         public let fg: NSColor?
@@ -105,11 +110,21 @@ private func wrap(_ styles: [Int: S], _ mode: ThemeMode) -> ColorScheme {
     case .light:
         return ColorScheme(defaultFg: Palette.fgLight, defaultBg: Palette.bgLight,
                            lineNumberFg: Palette.lnFgLight, lineNumberBg: Palette.bgLight,
-                           styles: styles)
+                           styles: styles,
+                           braceLightFg: NSColor.hex(0x000000),
+                           braceLightBg: NSColor.hex(0xFFE99B),    // soft yellow
+                           braceBadFg:   NSColor.hex(0xC00000),
+                           indentGuideFg: NSColor.hex(0xD0D0D0),
+                           whitespaceFg:  NSColor.hex(0xC0C0C0))
     case .dark:
         return ColorScheme(defaultFg: Palette.fgDark, defaultBg: Palette.bgDark,
                            lineNumberFg: Palette.lnFgDark, lineNumberBg: Palette.bgDark,
-                           styles: styles)
+                           styles: styles,
+                           braceLightFg: NSColor.hex(0xFFFFFF),
+                           braceLightBg: NSColor.hex(0x444A3E),    // soft olive
+                           braceBadFg:   NSColor.hex(0xFF7070),
+                           indentGuideFg: NSColor.hex(0x3A3A3A),
+                           whitespaceFg:  NSColor.hex(0x4A4A4A))
     }
 }
 
