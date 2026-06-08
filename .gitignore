@@ -1,0 +1,33 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# macOS junk
+.DS_Store
+
+# Build artifacts
+build/
+RNotePad/build/
+swift-proof/build/
+
+# Xcode
+*.xcuserstate
+*.xcuserdata/
+DerivedData/
+
+# Generated debug info
+*.dSYM/
+*.dSYM.zip
+
+# Editor scratch
+.vscode/
+.idea/
+.claude/
+
+# Node (just in case)
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
