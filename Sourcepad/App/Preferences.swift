@@ -114,6 +114,16 @@ public final class Preferences {
         set { defaults.set(newValue.rawValue, forKey: "Sourcepad.externalChangeBehavior"); notify() }
     }
 
+    public var autocompleteEnabled: Bool {
+        get { defaults.object(forKey: "Sourcepad.autocomplete") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "Sourcepad.autocomplete"); notify() }
+    }
+
+    public var gitGutterEnabled: Bool {
+        get { defaults.object(forKey: "Sourcepad.gitGutter") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "Sourcepad.gitGutter"); notify() }
+    }
+
     private func notify() {
         NotificationCenter.default.post(name: .sourcepadPreferencesChanged, object: self)
     }

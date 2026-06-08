@@ -4,6 +4,12 @@
 
 import AppKit
 
+/// NSAlert subclass that surfaces its accessory text field for easy retrieval.
+final class NameAlert: NSAlert {
+    weak var field: NSTextField?
+    var input: String { field?.stringValue ?? "" }
+}
+
 public final class SidebarViewController: NSViewController,
                                           NSOutlineViewDataSource,
                                           NSOutlineViewDelegate {
@@ -67,6 +73,7 @@ public final class SidebarViewController: NSViewController,
         outline.target = self
         outline.action = #selector(rowClicked(_:))         // single-click: open file, toggle folder
         outline.doubleAction = #selector(rowClicked(_:))   // keep double-click working too
+        outline.menu = makeContextMenu()
 
         let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name"))
         col.title = "Name"
@@ -235,6 +242,122 @@ public final class SidebarViewController: NSViewController,
     }
 
     // MARK: - Filesystem listing (cached)
+
+    // MARK: - Context menu (right-click)
+
+    private func makeContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = true
+        for (title, sel) in [
+            ("New File",      #selector(menuNewFile(_:))),
+            ("New Folder",    #selector(menuNewFolder(_:))),
+            ("Rename",        #selector(menuRename(_:))),
+            ("Move to Trash", #selector(menuMoveToTrash(_:))),
+            ("Reveal in Finder", #selector(menuReveal(_:))),
+            ("Copy Path",     #selector(menuCopyPath(_:))),
+        ] {
+            let item = NSMenuItem(title: title, action: sel, keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+            if title == "New Folder" || title == "Move to Trash" {
+                menu.addItem(.separator())
+            }
+        }
+        return menu
+    }
+
+    private func clickedURL() -> URL? {
+        let row = outline.clickedRow
+        guard row >= 0 else { return rootURL }
+        return outline.item(atRow: row) as? URL
+    }
+
+    private func enclosingDir(for url: URL) -> URL {
+        var isDir: ObjCBool = false
+        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+        return isDir.boolValue ? url : url.deletingLastPathComponent()
+    }
+
+    @objc private func menuNewFile(_ sender: Any?) {
+        guard let target = clickedURL() else { return }
+        let dir = enclosingDir(for: target)
+        let alert = makePromptAlert(title: "New File", message: "Filename:")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = alert.input
+        guard !name.isEmpty else { return }
+        let url = dir.appendingPathComponent(name)
+        FileManager.default.createFile(atPath: url.path, contents: nil, attributes: nil)
+        refreshAfterMutation(parent: dir)
+        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
+    }
+
+    @objc private func menuNewFolder(_ sender: Any?) {
+        guard let target = clickedURL() else { return }
+        let dir = enclosingDir(for: target)
+        let alert = makePromptAlert(title: "New Folder", message: "Folder name:")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = alert.input
+        guard !name.isEmpty else { return }
+        let url = dir.appendingPathComponent(name)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: false, attributes: nil)
+        refreshAfterMutation(parent: dir)
+    }
+
+    @objc private func menuRename(_ sender: Any?) {
+        guard let url = clickedURL(), url != rootURL else { return }
+        let alert = makePromptAlert(title: "Rename", message: "New name:", defaultValue: url.lastPathComponent)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = alert.input
+        guard !name.isEmpty, name != url.lastPathComponent else { return }
+        let dest = url.deletingLastPathComponent().appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: dest.path) {
+            NSSound.beep()
+            return
+        }
+        try? FileManager.default.moveItem(at: url, to: dest)
+        refreshAfterMutation(parent: url.deletingLastPathComponent())
+    }
+
+    @objc private func menuMoveToTrash(_ sender: Any?) {
+        guard let url = clickedURL(), url != rootURL else { return }
+        NSWorkspace.shared.recycle([url]) { [weak self] _, _ in
+            self?.refreshAfterMutation(parent: url.deletingLastPathComponent())
+        }
+    }
+
+    @objc private func menuReveal(_ sender: Any?) {
+        guard let url = clickedURL() else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    @objc private func menuCopyPath(_ sender: Any?) {
+        guard let url = clickedURL() else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url.path, forType: .string)
+    }
+
+    private func refreshAfterMutation(parent: URL) {
+        childrenCache.removeValue(forKey: parent)
+        DispatchQueue.main.async { [weak self] in
+            self?.outline.reloadData()
+            if let root = self?.rootURL { self?.outline.expandItem(root) }
+        }
+    }
+
+    private func makePromptAlert(title: String, message: String, defaultValue: String = "") -> NameAlert {
+        let alert = NameAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 22))
+        field.stringValue = defaultValue
+        field.bezelStyle = .roundedBezel
+        alert.accessoryView = field
+        alert.field = field
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        DispatchQueue.main.async { field.becomeFirstResponder(); field.selectText(nil) }
+        return alert
+    }
 
     private func children(of url: URL) -> [URL] {
         if let cached = childrenCache[url] { return cached }

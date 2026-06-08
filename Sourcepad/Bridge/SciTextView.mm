@@ -737,3 +737,65 @@ void SciSetMarginClickHandler(NSView *view,
     }
     d.marginClickHandler = handler;
 }
+
+// MARK: - Autocomplete
+
+void SciAutoCShow(NSView *view, NSInteger lenEntered, NSString *items) {
+    [(ScintillaView *)view setReferenceProperty:SCI_AUTOCSHOW
+                                       parameter:(uptr_t)lenEntered
+                                           value:[items UTF8String]];
+}
+
+void SciAutoCCancel(NSView *view) {
+    [(ScintillaView *)view message:SCI_AUTOCCANCEL];
+}
+
+BOOL SciAutoCActive(NSView *view) {
+    return [(ScintillaView *)view message:SCI_AUTOCACTIVE] != 0;
+}
+
+void SciAutoCSetIgnoreCase(NSView *view, BOOL ignore) {
+    [(ScintillaView *)view message:SCI_AUTOCSETIGNORECASE wParam:(uptr_t)(ignore ? 1 : 0) lParam:0];
+}
+
+void SciAutoCSetSeparator(NSView *view, int sep) {
+    [(ScintillaView *)view message:SCI_AUTOCSETSEPARATOR wParam:(uptr_t)sep lParam:0];
+}
+
+// MARK: - Git gutter
+
+void SciSetupGitGutter(NSView *view,
+                       int addedMarker,
+                       int modifiedMarker,
+                       int deletedMarker,
+                       NSColor *addedColor,
+                       NSColor *modifiedColor,
+                       NSColor *deletedColor) {
+    ScintillaView *v = (ScintillaView *)view;
+    // Margin 3: small symbol margin for git status. Mask covers only our slots.
+    int marginIdx = 3;
+    int mask = (1 << addedMarker) | (1 << modifiedMarker) | (1 << deletedMarker);
+    [v setGeneralProperty:SCI_SETMARGINTYPEN  parameter:marginIdx value:SC_MARGIN_SYMBOL];
+    [v setGeneralProperty:SCI_SETMARGINMASKN  parameter:marginIdx value:mask];
+    [v setGeneralProperty:SCI_SETMARGINWIDTHN parameter:marginIdx value:6];
+    [v setGeneralProperty:SCI_SETMARGINSENSITIVEN parameter:marginIdx value:0];
+
+    // Use a vertical bar glyph for added/modified, small triangle for deleted.
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:addedMarker    value:SC_MARK_LEFTRECT];
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:modifiedMarker value:SC_MARK_LEFTRECT];
+    [v setGeneralProperty:SCI_MARKERDEFINE parameter:deletedMarker  value:SC_MARK_SMALLRECT];
+
+    if (addedColor)    [v setColorProperty:SCI_MARKERSETBACK parameter:addedMarker    value:addedColor];
+    if (modifiedColor) [v setColorProperty:SCI_MARKERSETBACK parameter:modifiedMarker value:modifiedColor];
+    if (deletedColor)  [v setColorProperty:SCI_MARKERSETBACK parameter:deletedMarker  value:deletedColor];
+    if (addedColor)    [v setColorProperty:SCI_MARKERSETFORE parameter:addedMarker    value:addedColor];
+    if (modifiedColor) [v setColorProperty:SCI_MARKERSETFORE parameter:modifiedMarker value:modifiedColor];
+    if (deletedColor)  [v setColorProperty:SCI_MARKERSETFORE parameter:deletedMarker  value:deletedColor];
+}
+
+void SciGitGutterClearLines(NSView *view, int addedMarker, int modifiedMarker, int deletedMarker) {
+    ScintillaView *v = (ScintillaView *)view;
+    [v message:SCI_MARKERDELETEALL wParam:(uptr_t)addedMarker    lParam:0];
+    [v message:SCI_MARKERDELETEALL wParam:(uptr_t)modifiedMarker lParam:0];
+    [v message:SCI_MARKERDELETEALL wParam:(uptr_t)deletedMarker  lParam:0];
+}

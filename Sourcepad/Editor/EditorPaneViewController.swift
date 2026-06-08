@@ -13,6 +13,8 @@ public final class EditorPaneViewController: NSViewController {
     private var currentLexer: String?
     private var findBar: FindBar!
     private var findBarHeight: NSLayoutConstraint!
+    private var gitGutter: GitDiffGutter!
+    private var gitDebounce: DispatchWorkItem?
 
     public init(document: TextDocument) {
         self.document = document
@@ -76,6 +78,13 @@ public final class EditorPaneViewController: NSViewController {
         // in applyColorScheme() once the doc loads.
         let mode = ThemeMode.from(root.effectiveAppearance)
         Bookmarks.shared.setupMarker(in: editor, scheme: SchemeLibrary.scheme(for: nil, mode: mode))
+
+        // Git diff gutter
+        self.gitGutter = GitDiffGutter(sciView: editor)
+        gitGutter.setup(addedColor:    NSColor.systemGreen,
+                        modifiedColor: NSColor.systemBlue,
+                        deletedColor:  NSColor.systemRed)
+
         applyPreferences()  // sets font, tab width, line-number visibility
 
         NotificationCenter.default.addObserver(
@@ -137,6 +146,11 @@ public final class EditorPaneViewController: NSViewController {
 
         // Restore persisted bookmarks for this file.
         Bookmarks.shared.restore(for: doc.fileURL, in: sciView)
+
+        // Refresh git gutter against HEAD.
+        if Preferences.shared.gitGutterEnabled {
+            gitGutter.refresh(for: doc.fileURL, currentText: doc.contents)
+        }
     }
 
     public func currentCaretByte() -> Int {
@@ -349,8 +363,12 @@ public final class EditorPaneViewController: NSViewController {
                 self.document?.updateChangeCount(.changeDone)
             case .modified:
                 self.onTextChanged?()
+                self.scheduleGitGutterRefresh()
             case .updateUI:
                 SciUpdateBraceMatch(self.sciView)
+                if Preferences.shared.autocompleteEnabled {
+                    AutoComplete.update(in: self.sciView, lexer: self.currentLexer)
+                }
                 NotificationCenter.default.post(name: .sourcepadEditorUIDidUpdate, object: self)
             default:
                 break
@@ -485,6 +503,17 @@ public final class EditorPaneViewController: NSViewController {
                 SciToggleFoldAtLine(self.sciView, line)
             }
         }
+    }
+
+    private func scheduleGitGutterRefresh() {
+        guard Preferences.shared.gitGutterEnabled else { return }
+        gitDebounce?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.gitGutter.refresh(for: self.document?.fileURL, currentText: SciGetText(self.sciView))
+        }
+        gitDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
     }
 
     // MARK: - Line-level edit helpers

@@ -3,6 +3,7 @@
 // Swift sees this header but never the C++ guts underneath.
 
 #import <Cocoa/Cocoa.h>
+#import "KeywordSetsGenerated.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -243,6 +244,25 @@ void SciUnfoldAll(NSView *view);
 /// the margin index. Replaces any prior handler.
 void SciSetMarginClickHandler(NSView *view,
                               void (^_Nullable handler)(NSInteger bytePos, NSInteger margin));
+
+// MARK: - Autocomplete
+
+void SciAutoCShow(NSView *view, NSInteger lenEntered, NSString *spaceSeparatedItems);
+void SciAutoCCancel(NSView *view);
+BOOL SciAutoCActive(NSView *view);
+void SciAutoCSetIgnoreCase(NSView *view, BOOL ignore);
+void SciAutoCSetSeparator(NSView *view, int separatorCharCode);
+
+// MARK: - Git diff gutter markers
+
+void SciSetupGitGutter(NSView *view,
+                       int addedMarker,
+                       int modifiedMarker,
+                       int deletedMarker,
+                       NSColor *addedColor,
+                       NSColor *modifiedColor,
+                       NSColor *deletedColor);
+void SciGitGutterClearLines(NSView *view, int addedMarker, int modifiedMarker, int deletedMarker);
 
 #ifdef __cplusplus
 }
