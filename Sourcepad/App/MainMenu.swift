@@ -275,6 +275,28 @@ public enum MainMenu {
                          action: Selector(("sourcepadToggleShowInvisibles:")),
                          keyEquivalent: "")
 
+        viewMenu.addItem(.separator())
+        // Fold submenu — ⌥⌘[ / ⌥⌘] / ⌥⌘⇧[ / ⌥⌘⇧]
+        let fold = NSMenuItem(title: "Fold", action: nil, keyEquivalent: "")
+        let foldMenu = NSMenu(title: "Fold")
+        fold.submenu = foldMenu
+        let foldAtCursor = NSMenuItem(title: "Toggle Fold at Cursor",
+                                      action: Selector(("sourcepadToggleFoldAtCursor:")),
+                                      keyEquivalent: "[")
+        foldAtCursor.keyEquivalentModifierMask = [.command, .option]
+        foldMenu.addItem(foldAtCursor)
+        let foldAll = NSMenuItem(title: "Fold All",
+                                 action: Selector(("sourcepadFoldAll:")),
+                                 keyEquivalent: "[")
+        foldAll.keyEquivalentModifierMask = [.command, .option, .shift]
+        foldMenu.addItem(foldAll)
+        let unfoldAll = NSMenuItem(title: "Unfold All",
+                                   action: Selector(("sourcepadUnfoldAll:")),
+                                   keyEquivalent: "]")
+        unfoldAll.keyEquivalentModifierMask = [.command, .option, .shift]
+        foldMenu.addItem(unfoldAll)
+        viewMenu.addItem(fold)
+
         let previewItem = NSMenuItem(title: "Toggle Preview",
                                      action: #selector(PreviewMenuTarget.showPreview(_:)),
                                      keyEquivalent: "p")

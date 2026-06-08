@@ -283,12 +283,20 @@ BOOL SciIsModified(NSView *view) {
 
 @interface SPSciDelegate : NSObject <ScintillaNotificationProtocol>
 @property (nonatomic, copy, nullable) void (^handler)(SciNotification);
+@property (nonatomic, copy, nullable) void (^marginClickHandler)(NSInteger bytePos, NSInteger margin);
 @end
 
 @implementation SPSciDelegate
 - (void)notification:(SCNotification *)scn {
-    if (!self.handler) return;
     int code = scn->nmhdr.code;
+    if (code == SCN_MARGINCLICK && self.marginClickHandler) {
+        NSInteger pos = (NSInteger)scn->position;
+        NSInteger marg = (NSInteger)scn->margin;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (self.marginClickHandler) self.marginClickHandler(pos, marg);
+        });
+    }
+    if (!self.handler) return;
     if (code == SCN_MODIFIED || code == SCN_SAVEPOINTREACHED || code == SCN_SAVEPOINTLEFT
         || code == SCN_FOCUSIN || code == SCN_FOCUSOUT
         || code == SCN_UPDATEUI || code == SCN_MARGINCLICK) {
@@ -653,4 +661,79 @@ NSInteger SciLineEndByte(NSView *view, NSInteger line) {
 
 NSInteger SciLineFromByte(NSView *view, NSInteger byte) {
     return (NSInteger)[(ScintillaView *)view message:SCI_LINEFROMPOSITION wParam:(uptr_t)byte lParam:0];
+}
+
+// MARK: - Folding
+
+void SciEnableFolding(NSView *view, BOOL enabled, NSColor *markerFg, NSColor *markerBg) {
+    ScintillaView *v = (ScintillaView *)view;
+    if (!enabled) {
+        [v setGeneralProperty:SCI_SETMARGINWIDTHN parameter:2 value:0];
+        return;
+    }
+    // Tell the lexer to emit fold levels.
+    [v setReferenceProperty:SCI_SETPROPERTY parameter:(uptr_t)"fold" value:"1"];
+    [v setReferenceProperty:SCI_SETPROPERTY parameter:(uptr_t)"fold.compact" value:"1"];
+    [v setReferenceProperty:SCI_SETPROPERTY parameter:(uptr_t)"fold.html" value:"1"];
+    [v setReferenceProperty:SCI_SETPROPERTY parameter:(uptr_t)"fold.preprocessor" value:"1"];
+
+    // Margin 2 = fold margin.
+    [v setGeneralProperty:SCI_SETMARGINTYPEN  parameter:2 value:SC_MARGIN_SYMBOL];
+    [v setGeneralProperty:SCI_SETMARGINMASKN  parameter:2 value:SC_MASK_FOLDERS];
+    [v setGeneralProperty:SCI_SETMARGINWIDTHN parameter:2 value:16];
+    [v setGeneralProperty:SCI_SETMARGINSENSITIVEN parameter:2 value:1];
+
+    // Marker glyphs (box-style fold ornaments).
+    int markers[7][2] = {
+        { SC_MARKNUM_FOLDEROPEN,     SC_MARK_BOXMINUS },
+        { SC_MARKNUM_FOLDER,         SC_MARK_BOXPLUS  },
+        { SC_MARKNUM_FOLDERSUB,      SC_MARK_VLINE    },
+        { SC_MARKNUM_FOLDERTAIL,     SC_MARK_LCORNER  },
+        { SC_MARKNUM_FOLDEREND,      SC_MARK_BOXPLUSCONNECTED  },
+        { SC_MARKNUM_FOLDEROPENMID,  SC_MARK_BOXMINUSCONNECTED },
+        { SC_MARKNUM_FOLDERMIDTAIL,  SC_MARK_TCORNER  },
+    };
+    for (int i = 0; i < 7; i++) {
+        int slot = markers[i][0];
+        int glyph = markers[i][1];
+        [v setGeneralProperty:SCI_MARKERDEFINE parameter:slot value:glyph];
+        if (markerFg) [v setColorProperty:SCI_MARKERSETFORE parameter:slot value:markerFg];
+        if (markerBg) [v setColorProperty:SCI_MARKERSETBACK parameter:slot value:markerBg];
+    }
+    // Show fold-line below contracted folds.
+    [v setGeneralProperty:SCI_SETFOLDFLAGS parameter:0 value:16];  // 16 = DRAWLINEBELOWIFCONTRACTED
+}
+
+void SciToggleFoldAtLine(NSView *view, NSInteger line) {
+    [(ScintillaView *)view message:SCI_TOGGLEFOLD wParam:(uptr_t)line lParam:0];
+}
+
+static void foldAllStateImpl(ScintillaView *v, int action) {
+    sptr_t lines = [v message:SCI_GETLINECOUNT];
+    for (sptr_t line = 0; line < lines; line++) {
+        sptr_t level = [v message:SCI_GETFOLDLEVEL wParam:(uptr_t)line lParam:0];
+        BOOL isHeader = (level & SC_FOLDLEVELHEADERFLAG) != 0;
+        if (!isHeader) continue;
+        sptr_t expanded = [v message:SCI_GETFOLDEXPANDED wParam:(uptr_t)line lParam:0];
+        if ((action == 0 && expanded) || (action == 1 && !expanded)) {
+            [v message:SCI_TOGGLEFOLD wParam:(uptr_t)line lParam:0];
+        }
+    }
+}
+
+void SciFoldAll(NSView *view)   { foldAllStateImpl((ScintillaView *)view, 0); }
+void SciUnfoldAll(NSView *view) { foldAllStateImpl((ScintillaView *)view, 1); }
+
+static const char kSPMarginClickHandlerKey = 0;
+
+void SciSetMarginClickHandler(NSView *view,
+                              void (^handler)(NSInteger bytePos, NSInteger margin)) {
+    ScintillaView *v = (ScintillaView *)view;
+    SPSciDelegate *d = objc_getAssociatedObject(v, &kSPSciDelegateKey);
+    if (!d) {
+        d = [[SPSciDelegate alloc] init];
+        objc_setAssociatedObject(v, &kSPSciDelegateKey, d, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        v.delegate = d;
+    }
+    d.marginClickHandler = handler;
 }

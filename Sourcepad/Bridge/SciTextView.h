@@ -228,6 +228,22 @@ NSInteger SciLineStartByte(NSView *view, NSInteger line0Based);
 NSInteger SciLineEndByte(NSView *view, NSInteger line0Based);   // before EOL
 NSInteger SciLineFromByte(NSView *view, NSInteger byte);
 
+// MARK: - Folding
+
+/// Enable code folding for the current lexer. Configures margin 2 with the
+/// SC_MASK_FOLDERS marker set, sets SCI_SETPROPERTY "fold"="1", and defines
+/// the seven fold marker glyphs. Call after SciApplyLexer.
+void SciEnableFolding(NSView *view, BOOL enabled, NSColor *markerFg, NSColor *markerBg);
+
+void SciToggleFoldAtLine(NSView *view, NSInteger line);
+void SciFoldAll(NSView *view);
+void SciUnfoldAll(NSView *view);
+
+/// Install a handler for SCN_MARGINCLICK. Called with the byte position and
+/// the margin index. Replaces any prior handler.
+void SciSetMarginClickHandler(NSView *view,
+                              void (^_Nullable handler)(NSInteger bytePos, NSInteger margin));
+
 #ifdef __cplusplus
 }
 #endif

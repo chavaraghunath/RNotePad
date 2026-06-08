@@ -69,6 +69,7 @@ public final class EditorPaneViewController: NSViewController {
         ])
 
         installNotificationHandler()
+        installMarginClickHandler()
         bar.editorView = editor
         SciSetMultipleSelectionEnabled(editor, true)
         // Bookmark marker setup — scheme palette is light by default, refined
@@ -311,6 +312,24 @@ public final class EditorPaneViewController: NSViewController {
                 CSSStyler.applyToHTML(view: sciView, text: SciGetText(sciView))
             }
         }
+        // Re-enable folding for the current lexer (palette colours flipped).
+        let supports = EditorPaneViewController.lexerSupportsFolding(currentLexer)
+        SciEnableFolding(sciView, supports,
+                         scheme.lineNumberFg,
+                         scheme.defaultBg)
+    }
+
+    private static let foldableLexers: Set<String> = [
+        "cpp", "rust", "python", "ruby", "lua", "bash", "hypertext", "xml",
+        "css", "json", "yaml", "phpscript", "sql", "mssql", "makefile",
+        "perl", "powershell", "batch", "pascal", "haskell", "lisp", "scheme",
+        "fortran", "vhdl", "verilog", "tcl", "ada", "fsharp", "caml", "julia",
+        "markdown", "nim", "nimrod", "go",
+    ]
+
+    static func lexerSupportsFolding(_ lexer: String?) -> Bool {
+        guard let l = lexer else { return false }
+        return foldableLexers.contains(l)
     }
 
     // MARK: - Scintilla notifications
@@ -442,6 +461,25 @@ public final class EditorPaneViewController: NSViewController {
 
     @objc public func sourcepadClearBookmarks(_ sender: Any?) {
         Bookmarks.shared.clearAll(in: sciView, url: document?.fileURL)
+    }
+
+    // MARK: - Folding actions
+
+    @objc public func sourcepadToggleFoldAtCursor(_ sender: Any?) {
+        SciToggleFoldAtLine(sciView, SciGetCurrentLine(sciView))
+    }
+
+    @objc public func sourcepadFoldAll(_ sender: Any?)   { SciFoldAll(sciView) }
+    @objc public func sourcepadUnfoldAll(_ sender: Any?) { SciUnfoldAll(sciView) }
+
+    private func installMarginClickHandler() {
+        SciSetMarginClickHandler(sciView) { [weak self] bytePos, margin in
+            guard let self else { return }
+            if margin == 2 {
+                let line = SciLineFromByte(self.sciView, bytePos)
+                SciToggleFoldAtLine(self.sciView, line)
+            }
+        }
     }
 
     // MARK: - Line-level edit helpers
