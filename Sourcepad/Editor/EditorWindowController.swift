@@ -18,7 +18,13 @@ public final class EditorWindowController: NSWindowController,
         let vc = EditorViewController(document: document)
         self.editorViewController = vc
 
-        let window = NSWindow(contentViewController: vc)
+        let bar = StatusBarView()
+        bar.editorPane = vc.editorPane
+        bar.document = document
+
+        let root = RootContentViewController(editor: vc, statusBar: bar)
+
+        let window = NSWindow(contentViewController: root)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 1180, height: 720))
         window.title = "Sourcepad"

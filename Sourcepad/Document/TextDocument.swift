@@ -20,6 +20,13 @@ public final class TextDocument: NSDocument {
     /// Used as a fallback when the filename gives no hint.
     public var shebangLexer: String?
 
+    public enum LineEndings: String {
+        case lf = "LF", crlf = "CRLF", cr = "CR", mixed = "Mixed"
+    }
+
+    /// Line endings detected from the file content on read.
+    public var lineEndings: LineEndings = .lf
+
     public override init() {
         super.init()
         self.hasUndoManager = false  // Scintilla owns undo.
@@ -42,9 +49,25 @@ public final class TextDocument: NSDocument {
         self.encoding = enc
         self.hasUTF8BOM = bom
         self.shebangLexer = TextDocument.detectShebangLexer(from: text)
+        self.lineEndings = TextDocument.detectLineEndings(from: text)
         // Push to the editor if it's already loaded.
         if let editor = primaryEditorViewController() {
             editor.documentContentsDidLoad()
+        }
+    }
+
+    /// Human-readable encoding name for the status bar.
+    public var encodingDisplayName: String {
+        switch encoding {
+        case .utf8:              return hasUTF8BOM ? "UTF-8 BOM" : "UTF-8"
+        case .utf16LittleEndian: return "UTF-16 LE"
+        case .utf16BigEndian:    return "UTF-16 BE"
+        case .utf32LittleEndian: return "UTF-32 LE"
+        case .utf32BigEndian:    return "UTF-32 BE"
+        case .isoLatin1:         return "Latin-1"
+        case .ascii:             return "ASCII"
+        case .windowsCP1252:     return "CP1252"
+        default:                 return "—"
         }
     }
 
@@ -143,5 +166,37 @@ public final class TextDocument: NSDocument {
         case "powershell", "pwsh":           return "powershell"
         default:                              return nil
         }
+    }
+
+    /// Quick scan: which line-ending dominates this file?
+    static func detectLineEndings(from text: String) -> LineEndings {
+        var lf = 0, crlf = 0, cr = 0
+        let scalars = text.unicodeScalars
+        var i = scalars.startIndex
+        let end = scalars.endIndex
+        while i < end {
+            let c = scalars[i]
+            if c == "\r" {
+                let next = scalars.index(after: i)
+                if next < end, scalars[next] == "\n" {
+                    crlf += 1
+                    i = scalars.index(after: next)
+                } else {
+                    cr += 1
+                    i = next
+                }
+            } else if c == "\n" {
+                lf += 1
+                i = scalars.index(after: i)
+            } else {
+                i = scalars.index(after: i)
+            }
+        }
+        let nonZero = [lf, crlf, cr].filter { $0 > 0 }.count
+        if nonZero == 0 { return .lf }
+        if nonZero > 1 { return .mixed }
+        if crlf > 0 { return .crlf }
+        if cr > 0 { return .cr }
+        return .lf
     }
 }

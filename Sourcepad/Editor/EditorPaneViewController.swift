@@ -135,6 +135,27 @@ public final class EditorPaneViewController: NSViewController {
         return sel.location == NSNotFound ? 0 : Int(sel.location)
     }
 
+    // MARK: - Status-bar accessors
+
+    public var currentCursorLine: Int     { SciGetCurrentLine(sciView) }
+    public var currentCursorColumn: Int   { SciGetCurrentColumn(sciView) }
+    public var currentLineCount: Int      { SciGetLineCount(sciView) }
+    public var currentBufferByteCount: Int { SciTextLengthBytes(sciView) }
+    public var currentSelectionByteCount: Int {
+        let r = SciGetSelectionBytes(sciView)
+        return r.location == NSNotFound ? 0 : Int(r.length)
+    }
+
+    /// Replace the full buffer (used by EOL conversion in the status bar).
+    /// Preserves caret position by clamping to new length.
+    public func replaceWholeBuffer(with text: String) {
+        let oldPos = currentCaretByte()
+        SciSetText(sciView, text)
+        let newLen = SciTextLengthBytes(sciView)
+        let clamped = max(0, min(oldPos, newLen))
+        SciSetSelectionBytes(sciView, clamped, clamped)
+    }
+
     public var currentText: String { SciGetText(sciView) }
 
     public func markSavePoint() { SciSetSavePoint(sciView) }
