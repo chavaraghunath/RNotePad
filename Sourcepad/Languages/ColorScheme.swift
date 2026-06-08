@@ -465,6 +465,308 @@ private func diffStyles(_ mode: ThemeMode) -> [Int: S] {
     ]
 }
 
+// MARK: - Phase 8: additional lexer style maps
+
+private func perlStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        2:  S(fg: c ? Palette.lightComment  : Palette.darkComment),   // COMMENTLINE
+        3:  S(fg: c ? Palette.lightComment  : Palette.darkComment),   // POD
+        4:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),    // NUMBER
+        5:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),  // WORD (keyword)
+        6:  S(fg: c ? Palette.lightString   : Palette.darkString),    // STRING
+        7:  S(fg: c ? Palette.lightString   : Palette.darkString),    // CHARACTER
+        8:  S(fg: c ? Palette.lightOperator : Palette.darkOperator),  // PUNCTUATION
+        10: S(fg: c ? Palette.lightOperator : Palette.darkOperator),  // OPERATOR
+        11: S(fg: c ? Palette.lightFunction : Palette.darkFunction),  // IDENTIFIER
+        12: S(fg: c ? Palette.lightVariable : Palette.darkVariable),  // SCALAR ($)
+        13: S(fg: c ? Palette.lightVariable : Palette.darkVariable),  // ARRAY (@)
+        14: S(fg: c ? Palette.lightVariable : Palette.darkVariable),  // HASH (%)
+        17: S(fg: c ? Palette.lightRegex    : Palette.darkRegex),     // REGEX
+        20: S(fg: c ? Palette.lightString   : Palette.darkString),    // BACKTICKS
+    ]
+}
+
+private func powershellStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment  : Palette.darkComment),   // COMMENT
+        2:  S(fg: c ? Palette.lightString   : Palette.darkString),    // STRING
+        3:  S(fg: c ? Palette.lightString   : Palette.darkString),    // CHARACTER
+        4:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),    // NUMBER
+        5:  S(fg: c ? Palette.lightVariable : Palette.darkVariable),  // VARIABLE
+        6:  S(fg: c ? Palette.lightOperator : Palette.darkOperator),  // OPERATOR
+        7:  S(fg: c ? Palette.lightFunction : Palette.darkFunction),  // IDENTIFIER
+        8:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),  // KEYWORD
+        9:  S(fg: c ? Palette.lightType     : Palette.darkType),      // CMDLET
+        10: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator), // ALIAS
+        11: S(fg: c ? Palette.lightFunction : Palette.darkFunction),  // FUNCTION
+        13: S(fg: c ? Palette.lightComment  : Palette.darkComment),   // COMMENTSTREAM
+        14: S(fg: c ? Palette.lightString   : Palette.darkString),    // HERE_STRING
+    ]
+}
+
+private func batchStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        2: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        3: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),  // LABEL
+        5: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        6: S(fg: c ? Palette.lightVariable : Palette.darkVariable),   // IDENTIFIER ($VAR)
+        7: S(fg: c ? Palette.lightString   : Palette.darkString),
+    ]
+}
+
+private func asmStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment   : Palette.darkComment),
+        2:  S(fg: c ? Palette.lightNumber    : Palette.darkNumber),
+        3:  S(fg: c ? Palette.lightString    : Palette.darkString),
+        4:  S(fg: c ? Palette.lightOperator  : Palette.darkOperator),
+        5:  S(fg: c ? Palette.lightFunction  : Palette.darkFunction),  // IDENTIFIER
+        6:  S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword, bold: true), // CPUINSTR
+        7:  S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),   // MATHINSTR
+        8:  S(fg: c ? Palette.lightType      : Palette.darkType),      // REGISTER
+        9:  S(fg: c ? Palette.lightDecorator : Palette.darkDecorator), // DIRECTIVE
+        10: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // DIRECTIVEOPERAND
+    ]
+}
+
+private func pascalStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        2:  S(fg: c ? Palette.lightComment  : Palette.darkComment),    // COMMENTLINE
+        3:  S(fg: c ? Palette.lightComment  : Palette.darkComment),    // COMMENT
+        4:  S(fg: c ? Palette.lightComment  : Palette.darkComment),    // COMMENTBOR ({...})
+        5:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        6:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        8:  S(fg: c ? Palette.lightString   : Palette.darkString),     // CHARACTER
+        9:  S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        11: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),  // DIRECTIVE
+        12: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        13: S(fg: c ? Palette.lightType     : Palette.darkType),
+    ]
+}
+
+private func rStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        2: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),  // KWORD
+        3: S(fg: c ? Palette.lightType     : Palette.darkType),                 // BASEKWORD
+        4: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),            // OTHERKWORD
+        5: S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        6: S(fg: c ? Palette.lightString   : Palette.darkString),
+        7: S(fg: c ? Palette.lightString   : Palette.darkString),               // STRING2
+        8: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        9: S(fg: c ? Palette.lightFunction : Palette.darkFunction),             // IDENTIFIER
+        10: S(fg: c ? Palette.lightOperator: Palette.darkOperator),             // INFIX
+    ]
+}
+
+private func matlabStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        2: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),  // COMMAND
+        3: S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        4: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        5: S(fg: c ? Palette.lightString   : Palette.darkString),
+        6: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        7: S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        8: S(fg: c ? Palette.lightString   : Palette.darkString),
+    ]
+}
+
+private func tclStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        2: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        3: S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        5: S(fg: c ? Palette.lightString   : Palette.darkString),
+        6: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        7: S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        8: S(fg: c ? Palette.lightVariable : Palette.darkVariable),  // SUBSTITUTION
+        12: S(fg: c ? Palette.lightKeyword : Palette.darkKeyword, bold: true),
+    ]
+}
+
+private func latexStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),  // COMMAND
+        2:  S(fg: c ? Palette.lightTag      : Palette.darkTag),                  // TAG
+        3:  S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),            // MATH
+        4:  S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        5:  S(fg: c ? Palette.lightTag      : Palette.darkTag),                  // TAG2
+        8:  S(fg: c ? Palette.lightString   : Palette.darkString),               // VERBATIM
+        9:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),              // SHORTCMD
+        10: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),
+        11: S(fg: c ? Palette.lightVariable : Palette.darkVariable),             // CMDOPT
+    ]
+}
+
+private func haskellStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightFunction : Palette.darkFunction),  // IDENTIFIER
+        2:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        3:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        4:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        5:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        6:  S(fg: c ? Palette.lightType     : Palette.darkType),  // CLASS
+        7:  S(fg: c ? Palette.lightType     : Palette.darkType),  // MODULE
+        8:  S(fg: c ? Palette.lightType     : Palette.darkType),  // CAPITAL
+        9:  S(fg: c ? Palette.lightType     : Palette.darkType),  // DATA
+        10: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),  // IMPORT
+        11: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        13: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        14: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        18: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),
+        20: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+    ]
+}
+
+private func lispStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        2:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        3:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        4:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+        5:  S(fg: c ? Palette.lightVariable : Palette.darkVariable),
+        6:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        9:  S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        10: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        11: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),
+        12: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+    ]
+}
+
+private func camlStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        2:  S(fg: c ? Palette.lightType     : Palette.darkType),         // TAGNAME
+        3:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        4:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+        5:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+        7:  S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        8:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        9:  S(fg: c ? Palette.lightString   : Palette.darkString),       // CHAR
+        11: S(fg: c ? Palette.lightString   : Palette.darkString),
+        12: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+    ]
+}
+
+private func fsharpStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        2:  S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        3:  S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        7:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        8:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+        9:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+        10: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+        11: S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        12: S(fg: c ? Palette.lightString   : Palette.darkString),
+        13: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),
+        14: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        15: S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        18: S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        19: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+    ]
+}
+
+private func juliaStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        2:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        3:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        4:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+        5:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword),
+        6:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        7:  S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        8:  S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        9:  S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        10: S(fg: c ? Palette.lightString   : Palette.darkString),
+        11: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),  // SYMBOL
+        12: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),  // MACRO
+        13: S(fg: c ? Palette.lightString   : Palette.darkString),
+        14: S(fg: c ? Palette.lightComment  : Palette.darkComment),    // DOCSTRING
+        15: S(fg: c ? Palette.lightString   : Palette.darkString),
+        18: S(fg: c ? Palette.lightType     : Palette.darkType),
+    ]
+}
+
+private func nimStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        2:  S(fg: c ? Palette.lightComment  : Palette.darkComment),  // COMMENTDOC
+        3:  S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        5:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        6:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        7:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        8:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        12: S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        15: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        16: S(fg: c ? Palette.lightVariable : Palette.darkVariable),
+    ]
+}
+
+private func adaStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        2:  S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        3:  S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        4:  S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        5:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        7:  S(fg: c ? Palette.lightString   : Palette.darkString),
+        9:  S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),
+        10: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+    ]
+}
+
+private func fortranStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1:  S(fg: c ? Palette.lightComment   : Palette.darkComment),
+        2:  S(fg: c ? Palette.lightNumber    : Palette.darkNumber),
+        3:  S(fg: c ? Palette.lightString    : Palette.darkString),
+        4:  S(fg: c ? Palette.lightString    : Palette.darkString),
+        6:  S(fg: c ? Palette.lightOperator  : Palette.darkOperator),
+        7:  S(fg: c ? Palette.lightFunction  : Palette.darkFunction),
+        8:  S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword, bold: true),
+        9:  S(fg: c ? Palette.lightType      : Palette.darkType),
+        11: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator),
+        13: S(fg: c ? Palette.lightDecorator : Palette.darkDecorator),
+    ]
+}
+
+private func vhdlStyles(_ mode: ThemeMode) -> [Int: S] {
+    let c = mode == .light
+    return [
+        1: S(fg: c ? Palette.lightComment  : Palette.darkComment),
+        3: S(fg: c ? Palette.lightNumber   : Palette.darkNumber),
+        4: S(fg: c ? Palette.lightString   : Palette.darkString),
+        5: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        6: S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        8: S(fg: c ? Palette.lightKeyword  : Palette.darkKeyword, bold: true),
+        9: S(fg: c ? Palette.lightOperator : Palette.darkOperator),
+        10: S(fg: c ? Palette.lightDecorator: Palette.darkDecorator),
+        11: S(fg: c ? Palette.lightFunction : Palette.darkFunction),
+        12: S(fg: c ? Palette.lightType     : Palette.darkType),
+        13: S(fg: c ? Palette.lightType     : Palette.darkType),
+    ]
+}
+
 // MARK: - Public lookup
 
 public enum SchemeLibrary {
@@ -489,6 +791,31 @@ public enum SchemeLibrary {
         case "markdown":    return wrap(markdownStyles(mode), mode)
         case "makefile":    return wrap(makefileStyles(mode), mode)
         case "diff":        return wrap(diffStyles(mode),     mode)
+
+        // Phase 8 additions
+        case "perl":        return wrap(perlStyles(mode),       mode)
+        case "powershell":  return wrap(powershellStyles(mode), mode)
+        case "batch":       return wrap(batchStyles(mode),      mode)
+        case "asm":         return wrap(asmStyles(mode),        mode)
+        case "pascal":      return wrap(pascalStyles(mode),     mode)
+        case "r":           return wrap(rStyles(mode),          mode)
+        case "matlab":      return wrap(matlabStyles(mode),     mode)
+        case "tcl":         return wrap(tclStyles(mode),        mode)
+        case "latex":       return wrap(latexStyles(mode),      mode)
+        case "haskell":     return wrap(haskellStyles(mode),    mode)
+        case "lisp",
+             "scheme":      return wrap(lispStyles(mode),       mode)
+        case "caml":        return wrap(camlStyles(mode),       mode)
+        case "fsharp":      return wrap(fsharpStyles(mode),     mode)
+        case "julia":       return wrap(juliaStyles(mode),      mode)
+        case "nim",
+             "nimrod":      return wrap(nimStyles(mode),        mode)
+        case "ada":         return wrap(adaStyles(mode),        mode)
+        case "fortran",
+             "f77":         return wrap(fortranStyles(mode),    mode)
+        case "vhdl",
+             "verilog":     return wrap(vhdlStyles(mode),       mode)
+
         default:            return wrap([:],                   mode)  // fallback: just bg/fg
         }
     }
