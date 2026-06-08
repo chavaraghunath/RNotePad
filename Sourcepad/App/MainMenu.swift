@@ -46,6 +46,11 @@ public enum MainMenu {
         fileMenu.addItem(withTitle: "Open…",
                          action: #selector(NSDocumentController.openDocument(_:)),
                          keyEquivalent: "o")
+        let openFolder = NSMenuItem(title: "Open Folder…",
+                                    action: Selector(("sourcepadOpenFolder:")),
+                                    keyEquivalent: "O")
+        openFolder.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(openFolder)
         let recent = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
         let recentMenu = NSMenu(title: "Open Recent")
         recent.submenu = recentMenu
@@ -146,6 +151,12 @@ public enum MainMenu {
         viewMenu.addItem(lang)
 
         viewMenu.addItem(.separator())
+        let sidebarItem = NSMenuItem(title: "Toggle Sidebar",
+                                     action: Selector(("sourcepadToggleSidebar:")),
+                                     keyEquivalent: "0")
+        sidebarItem.keyEquivalentModifierMask = [.command]
+        viewMenu.addItem(sidebarItem)
+
         let previewItem = NSMenuItem(title: "Toggle Preview",
                                      action: #selector(PreviewMenuTarget.showPreview(_:)),
                                      keyEquivalent: "p")

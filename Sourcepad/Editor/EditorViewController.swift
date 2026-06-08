@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Sourcepad — NSSplitViewController hosting the editor pane and a
-// collapsible preview pane. NSSplitViewItem handles show/hide layout
-// correctly via `isCollapsed`.
+// Sourcepad — NSSplitViewController hosting (sidebar, editor, preview).
+// Sidebar and preview start collapsed; both toggle via menu/toolbar.
 
 import AppKit
 
@@ -9,9 +8,11 @@ public final class EditorViewController: NSSplitViewController {
 
     public weak var document: TextDocument?
 
+    public let sidebarPane: SidebarViewController
     public let editorPane: EditorPaneViewController
     public let previewPane: PreviewPaneViewController
 
+    private let sidebarItem: NSSplitViewItem
     private let editorItem: NSSplitViewItem
     private let previewItem: NSSplitViewItem
 
@@ -20,10 +21,20 @@ public final class EditorViewController: NSSplitViewController {
     public init(document: TextDocument) {
         self.document = document
 
+        let sp = SidebarViewController()
         let ep = EditorPaneViewController(document: document)
         let pp = PreviewPaneViewController()
+        self.sidebarPane = sp
         self.editorPane = ep
         self.previewPane = pp
+
+        let si = NSSplitViewItem(sidebarWithViewController: sp)
+        si.minimumThickness = 180
+        si.maximumThickness = 480
+        si.canCollapse = true
+        si.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
+        si.holdingPriority = NSLayoutConstraint.Priority(270)
+        self.sidebarItem = si
 
         let ei = NSSplitViewItem(viewController: ep)
         ei.minimumThickness = 320
@@ -33,9 +44,6 @@ public final class EditorViewController: NSSplitViewController {
         let pi = NSSplitViewItem(viewController: pp)
         pi.minimumThickness = 240
         pi.canCollapse = true
-        // Sibling (editor) absorbs the space when collapsing/uncollapsing,
-        // window size stays put. The previous behavior shrank the window
-        // because the split view itself was being resized.
         pi.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
         pi.holdingPriority = NSLayoutConstraint.Priority(260)
         self.previewItem = pi
@@ -44,11 +52,20 @@ public final class EditorViewController: NSSplitViewController {
         splitView.isVertical = true
         splitView.dividerStyle = .thin
 
+        addSplitViewItem(si)
         addSplitViewItem(ei)
         addSplitViewItem(pi)
 
-        // Start collapsed.
+        // Sidebar and preview start collapsed.
+        si.isCollapsed = true
         pi.isCollapsed = true
+
+        // Sidebar opens files via NSDocumentController.
+        sp.onOpen = { url in
+            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+                if let error { NSLog("[Sourcepad] sidebar open failed: \(url.path) — \(error)") }
+            }
+        }
 
         // When the editor's text changes, debounce a preview re-render.
         ep.onTextChanged = { [weak self] in
@@ -63,6 +80,10 @@ public final class EditorViewController: NSSplitViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
         editorPane.documentContentsDidLoad()
+        // Default sidebar root = enclosing folder of the document.
+        if let url = document?.fileURL {
+            sidebarPane.setRoot(url.deletingLastPathComponent())
+        }
         invalidateRestorableState()
     }
 
@@ -104,13 +125,49 @@ public final class EditorViewController: NSSplitViewController {
             NSSound.beep()
             return
         }
-        // animator() drives a smooth show/hide; NSSplitViewItem handles layout.
         previewItem.animator().isCollapsed = !previewItem.isCollapsed
         if !previewItem.isCollapsed {
             schedulePreviewRender(immediate: true)
         }
         view.window?.toolbar?.validateVisibleItems()
     }
+
+    // MARK: - Sidebar toggle
+
+    public var isShowingSidebar: Bool { !sidebarItem.isCollapsed }
+
+    public func toggleSidebar() {
+        sidebarItem.animator().isCollapsed = !sidebarItem.isCollapsed
+        view.window?.toolbar?.validateVisibleItems()
+    }
+
+    public func setSidebarRoot(_ url: URL) {
+        sidebarPane.setRoot(url)
+        if sidebarItem.isCollapsed {
+            sidebarItem.animator().isCollapsed = false
+        }
+        view.window?.toolbar?.validateVisibleItems()
+    }
+
+    // MARK: - Menu-action entry points (nil-target selectors)
+
+    @objc public func sourcepadToggleSidebar(_ sender: Any?) {
+        toggleSidebar()
+    }
+
+    @objc public func sourcepadOpenFolder(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Open Folder"
+        panel.beginSheetModal(for: view.window ?? NSApp.keyWindow ?? NSWindow()) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.setSidebarRoot(url)
+        }
+    }
+
+    // MARK: - Preview rendering
 
     private func schedulePreviewRender(immediate: Bool) {
         pendingRender?.cancel()
