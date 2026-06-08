@@ -28,29 +28,42 @@ public enum EditorContentFactory {
     /// Resolve the content for `document`. The factory inspects the
     /// override first; otherwise picks the best-fit default.
     public static func makeContent(for document: TextDocument) -> EditorContent {
-        // Phase 4: real alternative content types haven't shipped yet,
-        // so any non-.text mode resolves to PlaceholderContent. The
-        // surrounding chrome (sidebar / preview / status bar) is the
-        // thing being proven swappable.
         if let override = nextOpenOverride {
             nextOpenOverride = nil
-            if override != .text {
-                let kind: PlaceholderContent.Kind
-                switch override {
-                case .grid:   kind = .grid
-                case .tree:   kind = .tree
-                case .sqlite: kind = .sqlite
-                case .hex:    kind = .hex
-                case .font:   kind = .font
-                case .pdf:    kind = .pdf
-                case .text:   kind = .grid // unreachable
-                }
-                return PlaceholderContent(kind: kind, initialText: document.contents)
+            if let content = makeForMode(override, document: document) {
+                return content
             }
         }
         // Default: the Scintilla path. EditorPaneViewController already
         // accepts a document at init and pulls bytes via
         // documentContentsDidLoad().
         return EditorPaneViewController(document: document)
+    }
+
+    /// Phase 14–17: produce a real content type for a non-text mode if
+    /// the implementation has landed; otherwise fall through to the
+    /// placeholder (still proves the abstraction).
+    private static func makeForMode(_ mode: EditorContentMode,
+                                    document: TextDocument) -> EditorContent? {
+        let url = document.fileURL
+        let initialText = document.contents
+        switch mode {
+        case .text:
+            return nil
+        case .grid:
+            return CSVGridContent(initialText: initialText)
+        case .tree:
+            return JSONTreeContent(initialText: initialText)
+        case .hex:
+            if let u = url { return HexViewContent(fileURL: u) }
+            return HexViewContent(initialText: initialText)
+        case .sqlite:
+            if let u = url { return SQLiteBrowserContent(fileURL: u) }
+            return PlaceholderContent(kind: .sqlite, initialText: initialText)
+        case .font:
+            return PlaceholderContent(kind: .font, initialText: initialText)
+        case .pdf:
+            return PlaceholderContent(kind: .pdf, initialText: initialText)
+        }
     }
 }

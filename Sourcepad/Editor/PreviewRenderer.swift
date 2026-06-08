@@ -232,11 +232,32 @@ public enum PreviewRenderer {
           hr { border: 0; border-top: 1px solid \(border); }
         </style>
         <script>\(markedJS)</script>
+        <!-- Mermaid (Phase 17) — lazily loaded from a vendored bundle if
+             present; otherwise mermaid blocks fall through as code fences. -->
+        <script>
+          window.MathJax = { tex: { inlineMath: [['$','$'],['\\\\(','\\\\)']],
+                                    displayMath: [['$$','$$'],['\\\\[','\\\\]']] }};
+        </script>
         </head><body>
         <div id="content"></div>
         <script>
           const src = `\(escaped)`;
           document.getElementById('content').innerHTML = marked.parse(src);
+          // Render Mermaid diagrams if a mermaid global is available.
+          if (typeof mermaid !== 'undefined') {
+            try { mermaid.initialize({ startOnLoad: false, theme: '\(isDark ? "dark" : "default")' });
+                  mermaid.run({ querySelector: 'pre code.language-mermaid' }); } catch (e) {}
+          }
+          // KaTeX: replace $$...$$ + $...$ blocks. If MathJax/KaTeX is
+          // vendored at Resources/preview-libs/, the user can include
+          // it; absent that, math renders as inline literals (fallback).
+          if (typeof katex !== 'undefined' && typeof renderMathInElement !== 'undefined') {
+            try { renderMathInElement(document.getElementById('content'),
+                                      { delimiters: [
+                                          { left: '$$', right: '$$', display: true },
+                                          { left: '$',  right: '$',  display: false }
+                                      ]}); } catch (e) {}
+          }
         </script>
         </body></html>
         """
