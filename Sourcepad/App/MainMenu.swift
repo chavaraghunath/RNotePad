@@ -145,6 +145,21 @@ public enum MainMenu {
         editMenu.addItem(withTitle: "Add Cursor to Next Occurrence",
                          action: Selector(("sourcepadAddNextOccurrence:")),
                          keyEquivalent: "d")
+
+        // Smart selection (Phase 5 — Tree-sitter).
+        // ⌃⇧→ / ⌃⇧← — expand / shrink to the enclosing syntax node.
+        let rightArrow = String(UnicodeScalar(UInt32(NSRightArrowFunctionKey))!)
+        let leftArrow  = String(UnicodeScalar(UInt32(NSLeftArrowFunctionKey))!)
+        let expandItem = NSMenuItem(title: "Expand Selection",
+                                    action: Selector(("sourcepadExpandSelection:")),
+                                    keyEquivalent: rightArrow)
+        expandItem.keyEquivalentModifierMask = [.control, .shift]
+        editMenu.addItem(expandItem)
+        let shrinkItem = NSMenuItem(title: "Shrink Selection",
+                                    action: Selector(("sourcepadShrinkSelection:")),
+                                    keyEquivalent: leftArrow)
+        shrinkItem.keyEquivalentModifierMask = [.control, .shift]
+        editMenu.addItem(shrinkItem)
         editMenu.addItem(withTitle: "Go to Line…",
                          action: Selector(("sourcepadGoToLine:")),
                          keyEquivalent: "l")

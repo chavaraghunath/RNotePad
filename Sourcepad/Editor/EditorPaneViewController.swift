@@ -151,6 +151,33 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
         if Preferences.shared.gitGutterEnabled {
             gitGutter.refresh(for: doc.fileURL, currentText: doc.contents)
         }
+
+        // Spin up Tree-sitter for languages we have a grammar for.
+        setupTreeSitter(for: lexerName, source: doc.contents)
+    }
+
+    // MARK: - Tree-sitter wiring (Phase 5)
+
+    private var treeSitterManager: TreeSitterManager?
+    private let smartSelection = SmartSelection()
+
+    private func setupTreeSitter(for lexer: String?, source: String) {
+        guard let tsLang = TreeSitterLanguage.fromLexer(lexer),
+              let mgr = TreeSitterManager(language: tsLang) else {
+            treeSitterManager = nil
+            return
+        }
+        treeSitterManager = mgr
+        mgr.reparse(source: source)
+    }
+
+    /// Called by the .modified notification path. Cheap if Tree-sitter
+    /// isn't active for this language.
+    public func treeSitterReparseFullBuffer() {
+        guard let mgr = treeSitterManager else { return }
+        mgr.reparse(source: SciGetText(sciView))
+        // Edits invalidate any in-flight smart-selection stack.
+        smartSelection.reset()
     }
 
     public func currentCaretByte() -> Int {
@@ -387,6 +414,7 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
             case .modified:
                 self.onTextChanged?()
                 self.scheduleGitGutterRefresh()
+                self.treeSitterReparseFullBuffer()
             case .updateUI:
                 SciUpdateBraceMatch(self.sciView)
                 if Preferences.shared.autocompleteEnabled {
@@ -443,6 +471,27 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
 
     @objc public func sourcepadAddNextOccurrence(_ sender: Any?) {
         if !SciAddNextOccurrenceToSelection(sciView) { NSSound.beep() }
+    }
+
+    // MARK: - Phase 5 smart selection (Tree-sitter)
+
+    @objc public func sourcepadExpandSelection(_ sender: Any?) {
+        guard let mgr = treeSitterManager else { NSSound.beep(); return }
+        let sel = SciGetSelectionBytes(sciView)
+        let start = sel.location == NSNotFound ? 0 : Int(sel.location)
+        let end = start + sel.length
+        guard let newRange = smartSelection.expand(currentStart: start,
+                                                   currentEnd: end,
+                                                   in: mgr) else {
+            NSSound.beep()
+            return
+        }
+        SciSetSelectionBytes(sciView, newRange.start, newRange.end)
+    }
+
+    @objc public func sourcepadShrinkSelection(_ sender: Any?) {
+        guard let prior = smartSelection.shrink() else { NSSound.beep(); return }
+        SciSetSelectionBytes(sciView, prior.start, prior.end)
     }
 
     @objc public func sourcepadGoToLine(_ sender: Any?) {

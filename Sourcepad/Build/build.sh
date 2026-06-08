@@ -12,6 +12,7 @@ BUILD_DIR="$APP_DIR/dist"
 APP_BUNDLE="$BUILD_DIR/Sourcepad.app"
 SCI_PROJ="$REPO_ROOT/scintilla/cocoa/ScintillaTest/ScintillaTest.xcodeproj"
 LEXILLA_INC="$REPO_ROOT/lexilla/include"
+TS_ROOT="$REPO_ROOT/tree-sitter"
 
 # 1+2. Build Scintilla.framework + liblexilla.dylib
 echo "==> Building Scintilla.framework + liblexilla.dylib"
@@ -37,6 +38,8 @@ clang++ -c "$APP_DIR/Bridge/SciTextView.mm" \
     -F "$SCI_BUILD" \
     -I "$LEXILLA_INC" \
     -I "$APP_DIR/Bridge" \
+    -I "$TS_ROOT/lib/include" \
+    -I "$TS_ROOT/grammars" \
     -mmacosx-version-min=13.0 \
     -o "$BUILD_DIR/SciTextView.o"
 
@@ -44,6 +47,41 @@ clang -c "$APP_DIR/Bridge/KeywordSetsGenerated.m" \
     -fobjc-arc -fmodules \
     -mmacosx-version-min=13.0 \
     -o "$BUILD_DIR/KeywordSetsGenerated.o"
+
+# Tree-sitter: core library (single-file lib.c) + per-grammar parsers.
+echo "==> Compiling Tree-sitter core + grammars"
+TS_OBJS=()
+
+clang -c "$TS_ROOT/lib/src/lib.c" \
+    -O2 \
+    -I "$TS_ROOT/lib/include" \
+    -I "$TS_ROOT/lib/src" \
+    -mmacosx-version-min=13.0 \
+    -o "$BUILD_DIR/tree-sitter.o"
+TS_OBJS+=("$BUILD_DIR/tree-sitter.o")
+
+# Each grammar is one parser.c (and sometimes a scanner.c). Compile both.
+for grammar_dir in "$TS_ROOT"/grammars/*/; do
+    name="$(basename "$grammar_dir")"
+    if [ -f "$grammar_dir/src/parser.c" ]; then
+        clang -c "$grammar_dir/src/parser.c" \
+            -O2 \
+            -I "$grammar_dir/src" \
+            -I "$TS_ROOT/lib/include" \
+            -mmacosx-version-min=13.0 \
+            -o "$BUILD_DIR/ts-$name-parser.o"
+        TS_OBJS+=("$BUILD_DIR/ts-$name-parser.o")
+    fi
+    if [ -f "$grammar_dir/src/scanner.c" ]; then
+        clang -c "$grammar_dir/src/scanner.c" \
+            -O2 \
+            -I "$grammar_dir/src" \
+            -I "$TS_ROOT/lib/include" \
+            -mmacosx-version-min=13.0 \
+            -o "$BUILD_DIR/ts-$name-scanner.o"
+        TS_OBJS+=("$BUILD_DIR/ts-$name-scanner.o")
+    fi
+done
 
 # 4. Compile Swift sources
 echo "==> Compiling Swift sources"
@@ -96,12 +134,17 @@ SWIFT_SRCS=(
     "$APP_DIR/Editor/FindBar.swift"
     "$APP_DIR/Languages/LexerRegistry.swift"
     "$APP_DIR/Languages/ColorScheme.swift"
+    "$APP_DIR/Languages/TreeSitter/TreeSitter.swift"
+    "$APP_DIR/Languages/TreeSitter/TreeSitterManager.swift"
+    "$APP_DIR/Languages/TreeSitter/SmartSelection.swift"
 )
 
 swiftc "${SWIFT_SRCS[@]}" \
     -module-name Sourcepad \
     -target arm64-apple-macos13.0 \
     -import-objc-header "$APP_DIR/Bridge/SciTextView.h" \
+    -Xcc -I -Xcc "$TS_ROOT/lib/include" \
+    -Xcc -I -Xcc "$TS_ROOT/grammars" \
     -F "$SCI_BUILD" \
     -framework Scintilla \
     -framework AppKit \
@@ -109,6 +152,7 @@ swiftc "${SWIFT_SRCS[@]}" \
     -framework WebKit \
     -Xlinker "$BUILD_DIR/SciTextView.o" \
     -Xlinker "$BUILD_DIR/KeywordSetsGenerated.o" \
+    $(printf -- '-Xlinker %s ' "${TS_OBJS[@]}") \
     -Xlinker -lc++ \
     -Xlinker -lsqlite3 \
     -Xlinker -rpath -Xlinker "@executable_path/../Frameworks" \

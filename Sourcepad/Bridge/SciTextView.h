@@ -5,6 +5,13 @@
 #import <Cocoa/Cocoa.h>
 #import "KeywordSetsGenerated.h"
 
+// Tree-sitter — surfaced to Swift via the bridging header.
+// Repo-relative paths so the importer doesn't need -Xcc -I flags (which
+// Swift's bridging-header importer resolves inconsistently across
+// macOS SDK versions).
+#import "../../tree-sitter/lib/include/tree_sitter/api.h"
+#import "../../tree-sitter/grammars/grammars.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 #ifdef __cplusplus
