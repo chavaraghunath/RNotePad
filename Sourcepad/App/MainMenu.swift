@@ -274,6 +274,36 @@ public enum MainMenu {
         findMenu.addItem(findInFiles)
         editMenu.addItem(find)
 
+        // Phase 26 / 27 power editor items
+        editMenu.addItem(.separator())
+        let clipRing = NSMenuItem(title: "Clipboard Ring…",
+                                  action: Selector(("sourcepadShowClipboardRing:")),
+                                  keyEquivalent: "v")
+        clipRing.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(clipRing)
+        let format = NSMenuItem(title: "Format Buffer",
+                                action: Selector(("sourcepadFormatBuffer:")),
+                                keyEquivalent: "f")
+        format.keyEquivalentModifierMask = [.command, .option]
+        editMenu.addItem(format)
+
+        // Edit → Transform submenu (Phase 27 utility transforms)
+        let transform = NSMenuItem(title: "Transform", action: nil, keyEquivalent: "")
+        let transformMenu = NSMenu(title: "Transform")
+        transform.submenu = transformMenu
+        for kind in [
+            UtilityTransforms.Kind.base64Encode, .base64Decode,
+            .urlEncode, .urlDecode, .md5, .sha256,
+            .uuid, .timestampNow, .toUpper, .toLower,
+        ] {
+            let item = NSMenuItem(title: kind.rawValue,
+                                  action: Selector(("sourcepadTransform:")),
+                                  keyEquivalent: "")
+            item.representedObject = kind.rawValue
+            transformMenu.addItem(item)
+        }
+        editMenu.addItem(transform)
+
         // ⌘⇧P — Command Palette (Phase 3)
         editMenu.addItem(.separator())
         let cmdPalette = NSMenuItem(title: "Command Palette…",
@@ -281,6 +311,17 @@ public enum MainMenu {
                                     keyEquivalent: "p")
         cmdPalette.keyEquivalentModifierMask = [.command, .shift]
         editMenu.addItem(cmdPalette)
+
+
+
+        // MARK: Tools menu (Phase 29)
+        let toolsItem = NSMenuItem()
+        menubar.addItem(toolsItem)
+        let toolsMenu = NSMenu(title: "Tools")
+        toolsItem.submenu = toolsMenu
+        toolsMenu.addItem(withTitle: "Regex Tester…",
+                          action: Selector(("sourcepadOpenRegexTester:")),
+                          keyEquivalent: "")
 
         // MARK: Notes menu (Phase 19–21)
         let notesItem = NSMenuItem()

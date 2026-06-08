@@ -18,6 +18,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Phase 25: menu-bar quick capture.
         QuickCaptureController.shared.install()
 
+        // Phase 26: clipboard ring background polling.
+        ClipboardRing.shared.start()
+
         NSApp.mainMenu = MainMenu.build()
         NSApp.activate(ignoringOtherApps: true)
 
@@ -116,6 +119,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc public func sourcepadGoToSymbol(_ sender: Any?) {
         PaletteWindowController.shared.present(provider: SymbolPaletteProvider())
+    }
+
+    @objc public func sourcepadOpenRegexTester(_ sender: Any?) {
+        RegexTesterWindow.shared.show()
+    }
+
+    @objc public func sourcepadFormatBuffer(_ sender: Any?) {
+        Formatters.formatActiveBuffer()
+    }
+
+    @objc public func sourcepadShowClipboardRing(_ sender: Any?) {
+        guard let view = NSApp.keyWindow?.contentView else { NSSound.beep(); return }
+        ClipboardRing.shared.showPicker(anchor: view)
+    }
+
+    @objc public func sourcepadTransform(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+              let raw = item.representedObject as? String,
+              let kind = UtilityTransforms.Kind(rawValue: raw) else { return }
+        UtilityTransforms.apply(kind)
     }
 
     // MARK: - View > Open As (Phase 4)

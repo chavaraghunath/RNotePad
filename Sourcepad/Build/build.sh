@@ -169,6 +169,10 @@ SWIFT_SRCS=(
     "$APP_DIR/NativeMac/SpeakSelection.swift"
     "$APP_DIR/NativeMac/ContinuityCamera.swift"
     "$APP_DIR/MenuBar/QuickCaptureController.swift"
+    "$APP_DIR/EditorPower/ClipboardRing.swift"
+    "$APP_DIR/EditorPower/Formatters.swift"
+    "$APP_DIR/EditorPower/UtilityTransforms.swift"
+    "$APP_DIR/Tools/RegexTesterWindow.swift"
 )
 
 swiftc "${SWIFT_SRCS[@]}" \
