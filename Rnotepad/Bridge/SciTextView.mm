@@ -12,6 +12,7 @@
 // lexilla/include/ — added to clang's include path by build.sh.
 #import "SciLexer.h"
 #import "Lexilla.h"
+#import "KeywordSetsGenerated.h"
 
 #import <dlfcn.h>
 #import <objc/runtime.h>
@@ -67,13 +68,11 @@ static Lexilla::CreateLexerFn LoadCreateLexer() {
     return fn;
 }
 
-// Per-lexer default keyword sets. Lexilla doesn't ship with hard-coded
-// keyword lists — the host app must register them via SCI_SETKEYWORDS, or
-// lexers can't distinguish keywords from identifiers.
-//
-// Keys are Lexilla lexer names. Values are arrays indexed by keyword-set slot
-// (0 = primary, 1 = secondary, etc.). Empty strings skip a slot.
-static NSDictionary<NSString *, NSArray<NSString *> *> *DefaultKeywords() {
+// Per-lexer default keyword sets. The full ~25k keywords across 65 lexers
+// come from the generated KeywordSetsGenerated.m (extracted from NPP's
+// langs.model.xml — language-spec facts, not GPL code). This wrapper is
+// kept only as a fallback for the few lexers NPP doesn't cover.
+static NSDictionary<NSString *, NSArray<NSString *> *> *FallbackKeywords() {
     static NSDictionary *table = nil;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -183,9 +182,12 @@ BOOL SciApplyLexer(NSView *view, NSString *lexerName) {
     }
     [v setReferenceProperty:SCI_SETILEXER parameter:0 value:lexer];
 
-    // Register default keyword sets per lexer so it can distinguish keywords
-    // from identifiers (otherwise everything ends up as IDENTIFIER tokens).
-    if (NSArray<NSString *> *sets = DefaultKeywords()[lexerName]) {
+    // Register keyword sets per lexer. Prefer the comprehensive generated
+    // table (extracted from NPP's langs.model.xml — ~25k keywords across
+    // 65 lexers); fall back to our hand-rolled shortlist if unavailable.
+    NSArray<NSString *> *sets = RNPKeywordSetsForLexer(lexerName);
+    if (!sets) sets = FallbackKeywords()[lexerName];
+    if (sets) {
         for (NSInteger slot = 0; slot < (NSInteger)sets.count; slot++) {
             NSString *kw = sets[slot];
             if (kw.length > 0) {

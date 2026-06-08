@@ -25,15 +25,37 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
-LANGS_XML = ROOT / "PowerEditor" / "src" / "langs.model.xml"
-SCI_EDIT_CPP = ROOT / "PowerEditor" / "src" / "ScintillaComponent" / "ScintillaEditView.cpp"
-OUT_SWIFT = ROOT / "Rnotepad" / "Languages" / "LexerRegistry.swift"
+OUT_SWIFT       = ROOT / "Rnotepad" / "Languages"  / "LexerRegistry.swift"
+OUT_KEYWORDS_H  = ROOT / "Rnotepad" / "Bridge"     / "KeywordSetsGenerated.h"
+OUT_KEYWORDS_M  = ROOT / "Rnotepad" / "Bridge"     / "KeywordSetsGenerated.m"
+
+# We deleted PowerEditor/ to keep the repo MIT-clean. Source files now come
+# from upstream NPP's GitHub raw URLs. Data is fact-only (extensions, lexer
+# ids, keyword strings — language-spec data); no GPL code is copied.
+NPP_RAW = "https://raw.githubusercontent.com/notepad-plus-plus/notepad-plus-plus/master"
+LANGS_XML_URL    = f"{NPP_RAW}/PowerEditor/src/langs.model.xml"
+SCI_EDIT_CPP_URL = f"{NPP_RAW}/PowerEditor/src/ScintillaComponent/ScintillaEditView.cpp"
+
+CACHE_DIR = Path("/tmp/rnotepad-npp-cache")
+
+
+def fetch_cached(url, local_name):
+    """Download `url` once into /tmp; return the text. Cached per-run so re-runs are fast."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_path = CACHE_DIR / local_name
+    if cache_path.exists():
+        return cache_path.read_text(encoding="utf-8", errors="ignore")
+    print(f"  fetching {url}", file=sys.stderr)
+    with urllib.request.urlopen(url, timeout=30) as r:
+        text = r.read().decode("utf-8", errors="replace")
+    cache_path.write_text(text, encoding="utf-8")
+    return text
 
 
 def parse_npp_xml():
     """Return list of (langname, [exts])."""
-    tree = ET.parse(LANGS_XML)
-    root = tree.getroot()
+    xml_text = fetch_cached(LANGS_XML_URL, "langs.model.xml")
+    root = ET.fromstring(xml_text)
     result = []
     for lang in root.iter("Language"):
         name = lang.attrib.get("name")
@@ -46,12 +68,60 @@ def parse_npp_xml():
 
 def parse_lang_to_lexer_map():
     """Return dict mapping NPP langname → Lexilla lexer id."""
-    text = SCI_EDIT_CPP.read_text(encoding="utf-8", errors="ignore")
+    text = fetch_cached(SCI_EDIT_CPP_URL, "ScintillaEditView.cpp")
     # Match rows like: {L"cpp", L"...", L"...", L_CPP, "cpp"}
     pattern = re.compile(
         r'\{\s*L"([^"]+)"\s*,\s*L"[^"]*"\s*,\s*L"[^"]*"\s*,\s*L_\w+\s*,\s*"([^"]+)"\s*\}'
     )
     return dict(pattern.findall(text))
+
+
+def parse_keyword_sets():
+    """Return {langname: {slot_index: 'keywords ...'}}.
+
+    NPP's XML uses these <Keywords name=...> slot names; we map them to
+    SCI_SETKEYWORDS slot indices:
+        instre1 → 0   (primary keywords)
+        instre2 → 1   (secondary keywords)
+        type1   → 2
+        type2   → 3
+        type3   → 4
+        type4   → 5
+        type5   → 6
+        type6   → 7
+    Most Lexilla lexers use slots 0-3; some go up to 7.
+
+    Hypertext uses these slot meanings (per Lexilla's LexHTML.cxx):
+        0 = HTML tag names
+        1 = JavaScript keywords
+        2 = VBScript keywords
+        3 = Python keywords
+        4 = PHP keywords
+        5 = SGML keywords
+    These correspond to NPP's instre1, instre2, type1, type2, type3, type4 (etc.)
+    """
+    xml_text = fetch_cached(LANGS_XML_URL, "langs.model.xml")
+    root = ET.fromstring(xml_text)
+    slot_order = ["instre1", "instre2", "type1", "type2", "type3", "type4", "type5", "type6"]
+    result = {}
+    for lang in root.iter("Language"):
+        name = lang.attrib.get("name")
+        if not name:
+            continue
+        keywords_by_slot = {}
+        for kw_elem in lang.findall("Keywords"):
+            slot_name = kw_elem.attrib.get("name") or ""
+            if slot_name not in slot_order:
+                continue
+            text = (kw_elem.text or "").strip()
+            if not text:
+                continue
+            slot_idx = slot_order.index(slot_name)
+            # Normalise whitespace: keywords are space-separated.
+            keywords_by_slot[slot_idx] = " ".join(text.split())
+        if keywords_by_slot:
+            result[name] = keywords_by_slot
+    return result
 
 
 # Map NPP/VS Code lexer ids to actual Lexilla lexer names. Lexilla accepts the
@@ -301,24 +371,124 @@ def emit_swift(ext_map, name_map):
     return "\n".join(lines)
 
 
-def main():
-    if not LANGS_XML.exists():
-        print(f"error: {LANGS_XML} not found", file=sys.stderr)
-        sys.exit(1)
-    if not SCI_EDIT_CPP.exists():
-        print(f"error: {SCI_EDIT_CPP} not found", file=sys.stderr)
-        sys.exit(1)
+def build_keywords_by_lexer():
+    """Combine keyword sets across NPP languages, keyed by Lexilla lexer name.
 
+    Multiple NPP langs can map to the same Lexilla lexer (e.g., c, cpp, java,
+    swift, go, javascript all → "cpp"). When that happens we take the entry
+    with the most slots filled (preference: cpp's actual cpp entry, etc.).
+    """
+    lang_to_lexer = parse_lang_to_lexer_map()
+    keyword_sets = parse_keyword_sets()
+
+    by_lexer = {}
+    for langname, slots in keyword_sets.items():
+        lex = lang_to_lexer.get(langname)
+        if lex is None:
+            continue
+        lex = normalize_lexer(lex)
+        if not lex:
+            continue
+        # Prefer langs whose name matches the lexer id (e.g., "cpp" entry for
+        # "cpp" lexer over "java" entry for "cpp" lexer). Else take the largest.
+        existing = by_lexer.get(lex)
+        if existing is None:
+            by_lexer[lex] = slots
+        else:
+            score_new = sum(len(s.split()) for s in slots.values())
+            score_old = sum(len(s.split()) for s in existing.values())
+            prefer_new = (langname == lex) or (score_new > score_old)
+            if prefer_new:
+                by_lexer[lex] = slots
+    return by_lexer
+
+
+def _escape_c(s):
+    """Escape a string for use inside an Obj-C C string literal."""
+    return (s.replace("\\", "\\\\").replace("\"", "\\\"")
+             .replace("\n", "\\n").replace("\r", "\\r"))
+
+
+def emit_keyword_obj_c(by_lexer):
+    """Emit KeywordSetsGenerated.h/.m exposing a single C function for the bridge."""
+    header = """// SPDX-License-Identifier: MIT
+// Rnotepad — keyword sets per Lexilla lexer, generated by
+// scripts/extract-langs.py from NPP's langs.model.xml (factual keyword
+// strings only, no GPL code copied).
+
+#import <Foundation/Foundation.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// Returns the per-slot keyword strings for the given Lexilla lexer name,
+/// indexed by SCI_SETKEYWORDS slot (0 = primary, 1 = secondary, ...).
+/// Empty strings indicate that slot has no keywords. Returns nil for
+/// unknown lexers.
+NSArray<NSString *> *_Nullable RNPKeywordSetsForLexer(NSString *lexerName);
+
+#ifdef __cplusplus
+}
+#endif
+
+NS_ASSUME_NONNULL_END
+"""
+    impl_lines = [
+        "// SPDX-License-Identifier: MIT",
+        "// AUTO-GENERATED by scripts/extract-langs.py. Do not edit by hand.",
+        "",
+        "#import \"KeywordSetsGenerated.h\"",
+        "",
+        "NSArray<NSString *> *RNPKeywordSetsForLexer(NSString *lexerName) {",
+        "    static NSDictionary<NSString *, NSArray<NSString *> *> *table = nil;",
+        "    static dispatch_once_t once;",
+        "    dispatch_once(&once, ^{",
+        "        table = @{",
+    ]
+
+    for lex in sorted(by_lexer):
+        slots = by_lexer[lex]
+        max_slot = max(slots.keys())
+        sets_array = [slots.get(i, "") for i in range(max_slot + 1)]
+        impl_lines.append(f'            @"{_escape_c(lex)}": @[')
+        for s in sets_array:
+            impl_lines.append(f'                @"{_escape_c(s)}",')
+        impl_lines.append("            ],")
+
+    impl_lines.extend([
+        "        };",
+        "    });",
+        "    return table[lexerName];",
+        "}",
+        "",
+    ])
+
+    return header, "\n".join(impl_lines)
+
+
+def main():
     ext_map = build_ext_to_lexer()
     name_map = build_filename_to_lexer()
     swift = emit_swift(ext_map, name_map)
-
     OUT_SWIFT.parent.mkdir(parents=True, exist_ok=True)
     OUT_SWIFT.write_text(swift, encoding="utf-8")
-
     print(f"wrote {OUT_SWIFT}")
     print(f"  extensions: {len(ext_map)}")
     print(f"  filenames:  {len(name_map)}")
+
+    by_lexer = build_keywords_by_lexer()
+    header, impl = emit_keyword_obj_c(by_lexer)
+    OUT_KEYWORDS_H.parent.mkdir(parents=True, exist_ok=True)
+    OUT_KEYWORDS_H.write_text(header, encoding="utf-8")
+    OUT_KEYWORDS_M.write_text(impl, encoding="utf-8")
+    total_kw = sum(sum(len(s.split()) for s in slots.values()) for slots in by_lexer.values())
+    print(f"wrote {OUT_KEYWORDS_H}")
+    print(f"wrote {OUT_KEYWORDS_M}")
+    print(f"  lexers with keyword sets: {len(by_lexer)}")
+    print(f"  total keywords:           {total_kw}")
 
 
 if __name__ == "__main__":
