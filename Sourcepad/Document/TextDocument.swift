@@ -32,6 +32,11 @@ public final class TextDocument: NSDocument {
         self.hasUndoManager = false  // Scintilla owns undo.
     }
 
+    public override func close() {
+        if let url = fileURL { ClosedTabHistory.shared.push(url) }
+        super.close()
+    }
+
     public override class var autosavesInPlace: Bool { true }
 
     // MARK: - Window controller

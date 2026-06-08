@@ -554,3 +554,38 @@ void SciGoToLine(NSView *view, NSInteger line1Based) {
     [v message:SCI_GOTOPOS wParam:(uptr_t)pos lParam:0];
     [v message:SCI_SCROLLCARET];
 }
+
+// MARK: - Multi-selection
+
+void SciSetMultipleSelectionEnabled(NSView *view, BOOL enabled) {
+    ScintillaView *v = (ScintillaView *)view;
+    [v message:SCI_SETMULTIPLESELECTION wParam:(uptr_t)(enabled ? 1 : 0) lParam:0];
+    [v message:SCI_SETADDITIONALSELECTIONTYPING wParam:(uptr_t)(enabled ? 1 : 0) lParam:0];
+    [v message:SCI_SETMULTIPASTE wParam:(uptr_t)(enabled ? 1 : 0) lParam:0];  // 1 = SC_MULTIPASTE_EACH
+}
+
+BOOL SciAddNextOccurrenceToSelection(NSView *view) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t s = [v message:SCI_GETSELECTIONSTART];
+    sptr_t e = [v message:SCI_GETSELECTIONEND];
+    if (s == e) {
+        // Empty selection — expand to the word under caret first.
+        sptr_t wordStart = [v message:SCI_WORDSTARTPOSITION wParam:(uptr_t)s lParam:1];
+        sptr_t wordEnd   = [v message:SCI_WORDENDPOSITION   wParam:(uptr_t)s lParam:1];
+        if (wordStart == wordEnd) return NO;
+        [v message:SCI_SETSEL wParam:(uptr_t)wordStart lParam:(sptr_t)wordEnd];
+        return YES;
+    }
+    sptr_t prior = [v message:SCI_GETSELECTIONS];
+    [v message:SCI_MULTIPLESELECTADDNEXT];
+    sptr_t now = [v message:SCI_GETSELECTIONS];
+    return now > prior;
+}
+
+NSInteger SciSelectionCount(NSView *view) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_GETSELECTIONS];
+}
+
+void SciClearAdditionalSelections(NSView *view) {
+    [(ScintillaView *)view message:SCI_CLEARSELECTIONS];
+}

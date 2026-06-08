@@ -44,4 +44,23 @@ public final class DocumentController: NSDocumentController {
             completionHandler(doc, alreadyOpen, error)
         }
     }
+
+    /// File > Reopen Closed Tab (⌘⇧T). Pops the most recently closed URL
+    /// and re-opens it. Disabled when history is empty.
+    @objc public func sourcepadReopenClosedTab(_ sender: Any?) {
+        guard let url = ClosedTabHistory.shared.popLatest() else {
+            NSSound.beep()
+            return
+        }
+        openDocument(withContentsOf: url, display: true) { _, _, error in
+            if let error { DebugLog.log("reopen closed tab failed: \(url.path) — \(error)") }
+        }
+    }
+
+    public override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(sourcepadReopenClosedTab(_:)) {
+            return ClosedTabHistory.shared.hasEntries
+        }
+        return super.validateMenuItem(menuItem)
+    }
 }

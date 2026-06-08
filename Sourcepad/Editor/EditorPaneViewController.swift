@@ -70,6 +70,7 @@ public final class EditorPaneViewController: NSViewController {
 
         installNotificationHandler()
         bar.editorView = editor
+        SciSetMultipleSelectionEnabled(editor, true)
         applyPreferences()  // sets font, tab width, line-number visibility
 
         NotificationCenter.default.addObserver(
@@ -353,6 +354,29 @@ public final class EditorPaneViewController: NSViewController {
 
     @objc public func sourcepadZoomReset(_ sender: Any?) {
         Preferences.shared.zoomLevel = 0
+    }
+
+    // MARK: - Phase 3 actions
+
+    @objc public func sourcepadAddNextOccurrence(_ sender: Any?) {
+        if !SciAddNextOccurrenceToSelection(sciView) { NSSound.beep() }
+    }
+
+    @objc public func sourcepadGoToLine(_ sender: Any?) {
+        guard let window = view.window else { return }
+        let total = SciGetLineCount(sciView)
+        GoToLinePanel.shared.show(in: window, totalLines: total) { [weak self] line in
+            guard let self else { return }
+            SciGoToLine(self.sciView, line)
+        }
+    }
+
+    /// Called from the window-level event monitor when a paired character was
+    /// typed in the editor. Returns true to consume the event.
+    public func tryAutoPair(character: Character) -> Bool {
+        return AutoPair.handle(typedChar: character,
+                               in: sciView,
+                               currentText: { SciGetText(self.sciView) })
     }
 }
 

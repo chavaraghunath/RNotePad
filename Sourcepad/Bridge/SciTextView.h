@@ -200,6 +200,17 @@ NSInteger SciGetCurrentColumn(NSView *view); // 0-based, columns (tabs expand)
 NSInteger SciGetLineCount(NSView *view);
 void      SciGoToLine(NSView *view, NSInteger line1Based);
 
+// MARK: - Multi-selection
+
+void SciSetMultipleSelectionEnabled(NSView *view, BOOL enabled);
+/// Try to expand selection to include the next occurrence of the current
+/// selection. If selection is empty, expand to the surrounding word first.
+/// Returns YES if a new selection was added.
+BOOL SciAddNextOccurrenceToSelection(NSView *view);
+/// Total selection count (1 = single caret; >1 = multi-cursor mode).
+NSInteger SciSelectionCount(NSView *view);
+void SciClearAdditionalSelections(NSView *view);
+
 #ifdef __cplusplus
 }
 #endif

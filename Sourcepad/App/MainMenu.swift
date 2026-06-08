@@ -68,6 +68,11 @@ public enum MainMenu {
         fileMenu.addItem(withTitle: "Close",
                          action: #selector(NSWindow.performClose(_:)),
                          keyEquivalent: "w")
+        let reopen = NSMenuItem(title: "Reopen Closed Tab",
+                                action: Selector(("sourcepadReopenClosedTab:")),
+                                keyEquivalent: "t")
+        reopen.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(reopen)
         fileMenu.addItem(withTitle: "Save",
                          action: #selector(NSDocument.save(_:)),
                          keyEquivalent: "s")
@@ -118,6 +123,14 @@ public enum MainMenu {
         let find = NSMenuItem(title: "Find", action: nil, keyEquivalent: "")
         let findMenu = NSMenu(title: "Find")
         find.submenu = findMenu
+
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Add Cursor to Next Occurrence",
+                         action: Selector(("sourcepadAddNextOccurrence:")),
+                         keyEquivalent: "d")
+        editMenu.addItem(withTitle: "Go to Line…",
+                         action: Selector(("sourcepadGoToLine:")),
+                         keyEquivalent: "l")
 
         // Cmd-F / Cmd-E both focus the toolbar search field.
         findMenu.addItem(withTitle: "Find…",

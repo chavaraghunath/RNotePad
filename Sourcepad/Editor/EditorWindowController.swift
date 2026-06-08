@@ -13,6 +13,7 @@ public final class EditorWindowController: NSWindowController,
     public let editorViewController: EditorViewController
 
     private weak var searchField: NSSearchField?
+    private var localKeyMonitor: Any?
 
     public init(document: TextDocument) {
         let vc = EditorViewController(document: document)
@@ -37,6 +38,37 @@ public final class EditorWindowController: NSWindowController,
         window.registerForDraggedTypes([.fileURL])
 
         installToolbar(on: window)
+        installAutoPairMonitor()
+    }
+
+    deinit {
+        if let m = localKeyMonitor { NSEvent.removeMonitor(m) }
+    }
+
+    // MARK: - Auto-pair monitor
+
+    private func installAutoPairMonitor() {
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            // Only act on events targeting our window.
+            guard event.window === self.window else { return event }
+            // Skip if the first responder is the toolbar search or any non-editor field.
+            let editorPaneView = self.editorViewController.editorPane.view
+            guard let responder = self.window?.firstResponder as? NSView else { return event }
+            guard responder === editorPaneView || responder.isDescendant(of: editorPaneView) else {
+                return event
+            }
+            guard event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                    .subtracting([.shift, .capsLock]) == [] else { return event }
+            guard let chars = event.characters, chars.count == 1,
+                  let first = chars.first,
+                  AutoPair.pairs[first] != nil || AutoPair.closers.contains(first)
+            else { return event }
+            if self.editorViewController.editorPane.tryAutoPair(character: first) {
+                return nil  // consume — we did the insert via the bridge
+            }
+            return event
+        }
     }
 
     required init?(coder: NSCoder) {
