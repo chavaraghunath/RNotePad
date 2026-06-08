@@ -17,12 +17,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         //   (b) the default NSDocument display path doesn't reliably bring
         //       our programmatic window controller to the front.
         DispatchQueue.main.async {
+            // Skip if files were already opened via Apple Events (launch-with-file).
+            if !NSDocumentController.shared.documents.isEmpty { return }
+            // Try to restore the previous session.
+            if SessionRestore.shared.tryRestore() { return }
+            // No session to restore — fall back to an untitled document.
             guard let doc = try? NSDocumentController.shared.openUntitledDocumentAndDisplay(true) else { return }
             for wc in doc.windowControllers {
                 wc.showWindow(nil)
                 wc.window?.makeKeyAndOrderFront(nil)
             }
         }
+    }
+
+    public func applicationWillTerminate(_ notification: Notification) {
+        SessionRestore.shared.saveCurrentSession()
     }
 
     public func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {

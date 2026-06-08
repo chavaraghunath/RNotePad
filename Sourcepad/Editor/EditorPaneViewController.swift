@@ -112,6 +112,17 @@ public final class EditorPaneViewController: NSViewController {
         _ = SciApplyLexer(sciView, lexerName)
         applyColorScheme()
         SciSetSavePoint(sciView)
+
+        // Restore caret from previous session if we have a record.
+        if let url = doc.fileURL, let savedCaret = SessionRestore.shared.savedCaret(for: url) {
+            let clamped = max(0, min(savedCaret, SciTextLengthBytes(sciView)))
+            SciSetSelectionBytes(sciView, clamped, clamped)
+        }
+    }
+
+    public func currentCaretByte() -> Int {
+        let sel = SciGetSelectionBytes(sciView)
+        return sel.location == NSNotFound ? 0 : Int(sel.location)
     }
 
     public var currentText: String { SciGetText(sciView) }

@@ -54,6 +54,7 @@ SWIFT_SRCS=(
     "$APP_DIR/App/DebugLog.swift"
     "$APP_DIR/App/Preferences.swift"
     "$APP_DIR/App/PreferencesWindowController.swift"
+    "$APP_DIR/App/SessionRestore.swift"
     "$APP_DIR/Document/TextDocument.swift"
     "$APP_DIR/Document/DocumentController.swift"
     "$APP_DIR/Editor/EditorWindowController.swift"

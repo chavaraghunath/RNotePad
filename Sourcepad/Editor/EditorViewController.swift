@@ -102,6 +102,7 @@ public final class EditorViewController: NSSplitViewController {
 
     public var currentText: String { editorPane.currentText }
     public func markSavePoint() { editorPane.markSavePoint() }
+    public func currentCaretByte() -> Int { editorPane.currentCaretByte() }
     public func setLexer(_ name: String?) {
         editorPane.setLexer(name)
         if !previewItem.isCollapsed { schedulePreviewRender(immediate: true) }
