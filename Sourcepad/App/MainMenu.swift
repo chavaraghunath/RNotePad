@@ -282,6 +282,23 @@ public enum MainMenu {
         cmdPalette.keyEquivalentModifierMask = [.command, .shift]
         editMenu.addItem(cmdPalette)
 
+        // MARK: Notes menu (Phase 19–21)
+        let notesItem = NSMenuItem()
+        menubar.addItem(notesItem)
+        let notesMenu = NSMenu(title: "Notes")
+        notesItem.submenu = notesMenu
+        let daily = NSMenuItem(title: "Open Today's Daily Note",
+                               action: Selector(("sourcepadOpenDailyNote:")),
+                               keyEquivalent: "d")
+        daily.keyEquivalentModifierMask = [.command, .shift]
+        notesMenu.addItem(daily)
+        notesMenu.addItem(withTitle: "Follow Wikilink Under Caret",
+                          action: Selector(("sourcepadFollowWikilink:")),
+                          keyEquivalent: "")
+        notesMenu.addItem(withTitle: "Toggle Reading Mode",
+                          action: Selector(("sourcepadToggleReadingMode:")),
+                          keyEquivalent: "r").keyEquivalentModifierMask = [.command, .shift]
+
         // MARK: AI menu (Phase 10–13)
         let aiItem = NSMenuItem()
         menubar.addItem(aiItem)

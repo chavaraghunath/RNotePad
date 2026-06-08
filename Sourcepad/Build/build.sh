@@ -160,6 +160,11 @@ SWIFT_SRCS=(
     "$APP_DIR/AI/GhostText.swift"
     "$APP_DIR/AI/RewriteSheet.swift"
     "$APP_DIR/AI/AIAuxiliaries.swift"
+    "$APP_DIR/Notes/WikilinkParser.swift"
+    "$APP_DIR/Notes/DailyNotes.swift"
+    "$APP_DIR/Notes/TagIndex.swift"
+    "$APP_DIR/Notes/Backlinks.swift"
+    "$APP_DIR/Notes/ReadingMode.swift"
 )
 
 swiftc "${SWIFT_SRCS[@]}" \

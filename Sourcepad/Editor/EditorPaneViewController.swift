@@ -232,6 +232,40 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
         }
     }
 
+    // MARK: - Notes (Phase 19-21)
+
+    @objc public func sourcepadOpenDailyNote(_ sender: Any?) {
+        DailyNotes.openToday()
+    }
+
+    @objc public func sourcepadFollowWikilink(_ sender: Any?) {
+        // Try to find a wikilink under the caret + follow it.
+        let text = SciGetText(sciView)
+        let caret = currentCaretByte()
+        let bytes = Array(text.utf8)
+        guard caret <= bytes.count else { return }
+        // Convert caret byte to NSString location for the parser.
+        let prefix = String(decoding: bytes.prefix(caret), as: UTF8.self)
+        let location = (prefix as NSString).length
+        let links = WikilinkParser.extract(from: text)
+        for link in links {
+            let r = link.range
+            if location >= r.location && location <= r.location + r.length {
+                if let url = WikilinkParser.resolve(link.target) {
+                    NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
+                } else {
+                    NSSound.beep()
+                }
+                return
+            }
+        }
+        NSSound.beep()
+    }
+
+    @objc public func sourcepadToggleReadingMode(_ sender: Any?) {
+        ReadingMode.toggle()
+    }
+
     @objc public func sourcepadGenerateTest(_ sender: Any?) {
         let sel = SciGetSelectionBytes(sciView)
         let text = SciGetText(sciView)
