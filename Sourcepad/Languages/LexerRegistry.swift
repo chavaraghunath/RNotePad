@@ -32,6 +32,7 @@ public enum LexerRegistry {
         "bb": "blitzbasic",   // blitzbasic
         "bc": "baan",   // baanc
         "bi": "freebasic",   // freebasic
+        "bicep": "cpp",   // bicep
         "blade.php": "hypertext",   // blade
         "bsh": "bash",   // bash
         "c": "cpp",   // c
@@ -42,6 +43,7 @@ public enum LexerRegistry {
         "cdc": "COBOL",   // cobol
         "cf": "props",   // props
         "cfg": "props",   // props
+        "cjs": "cpp",   // cjs
         "cl": "visualprolog",   // visualprolog
         "clj": "lisp",   // clojure
         "cljc": "lisp",   // clojure
@@ -98,6 +100,7 @@ public enum LexerRegistry {
         "fsscript": "caml",   // fsharp
         "fsx": "caml",   // fsharp
         "gd": "gdscript",   // gdscript
+        "gemspec": "ruby",   // ruby
         "gitattributes": "props",   // props
         "gitconfig": "props",   // props
         "gitignore": "bash",   // gitignore
@@ -106,6 +109,7 @@ public enum LexerRegistry {
         "go": "cpp",   // go
         "gpx": "xml",   // xml
         "gql": "cpp",   // graphql
+        "gradle": "cpp",   // gradle
         "graphql": "cpp",   // graphql
         "graphqls": "cpp",   // graphql
         "groovy": "cpp",   // groovy
@@ -114,6 +118,7 @@ public enum LexerRegistry {
         "h": "cpp",   // cpp
         "handlebars": "hypertext",   // handlebars
         "hbs": "hypertext",   // handlebars
+        "hcl": "props",   // hcl
         "hex": "ihex",   // ihex
         "hh": "cpp",   // cpp
         "hpp": "cpp",   // cpp
@@ -130,6 +135,7 @@ public enum LexerRegistry {
         "inf": "props",   // ini
         "ini": "props",   // ini
         "ino": "cpp",   // cpp
+        "ipynb": "json",   // jupyter
         "iss": "inno",   // inno
         "itcl": "tcl",   // tcl
         "j2": "hypertext",   // jinja
@@ -161,14 +167,19 @@ public enum LexerRegistry {
         "lua": "lua",   // lua
         "m": "matlab",   // matlab
         "mak": "makefile",   // makefile
+        "markdown": "markdown",   // markdown
+        "md": "markdown",   // markdown
+        "mdown": "markdown",   // markdown
         "mdx": "markdown",   // mdx
         "mib": "asn1",   // asn1
         "mjs": "cpp",   // javascript.js
         "mk": "makefile",   // makefile
+        "mkd": "markdown",   // markdown
         "ml": "caml",   // caml
         "mli": "caml",   // caml
         "mm": "objc",   // objc
         "mms": "mmixal",   // mmixal
+        "mod": "props",   // gomod
         "mot": "srec",   // srec
         "mts": "cpp",   // typescript
         "mustache": "hypertext",   // handlebars
@@ -176,6 +187,7 @@ public enum LexerRegistry {
         "mxml": "xml",   // xml
         "nfo": nil,   // nfo
         "nim": "nimrod",   // nim
+        "nix": "cpp",   // nix
         "nsh": "nsis",   // nsis
         "nsi": "nsis",   // nsis
         "nt": "batch",   // batch
@@ -202,10 +214,12 @@ public enum LexerRegistry {
         "pm": "perl",   // perl
         "pm6": "raku",   // raku
         "pod6": "raku",   // raku
+        "podspec": "ruby",   // ruby
         "pp": "pascal",   // pascal
         "pro": "visualprolog",   // visualprolog
         "profile": "bash",   // bash
         "properties": "props",   // props
+        "proto": "cpp",   // proto
         "ps": "ps",   // postscript
         "ps1": "powershell",   // powershell
         "psd1": "powershell",   // powershell
@@ -220,6 +234,7 @@ public enum LexerRegistry {
         "r": "r",   // r
         "r2": "rebol",   // rebol
         "r3": "rebol",   // rebol
+        "rake": "ruby",   // ruby
         "raku": "raku",   // raku
         "rakudoc": "raku",   // raku
         "rakumod": "raku",   // raku
@@ -230,6 +245,7 @@ public enum LexerRegistry {
         "reb": "rebol",   // rebol
         "reg": "registry",   // registry
         "rs": "rust",   // rust
+        "ru": "ruby",   // ruby
         "s": "r",   // r
         "sas": "sas",   // sas
         "sass": "css",   // sass
@@ -258,6 +274,7 @@ public enum LexerRegistry {
         "sty": "latex",   // latex
         "styl": "css",   // stylus
         "stylus": "css",   // stylus
+        "sum": "props",   // gosum
         "sv": "verilog",   // verilog
         "svelte": "hypertext",   // svelte
         "svg": "xml",   // xml
@@ -272,6 +289,9 @@ public enum LexerRegistry {
         "tcl": "tcl",   // tcl
         "tek": "tehex",   // tehex
         "tex": "latex",   // latex
+        "tf": "props",   // terraform
+        "tfvars": "props",   // terraform
+        "thor": "ruby",   // ruby
         "thy": "caml",   // caml
         "toml": "toml",   // toml
         "tpl": "hypertext",   // smarty
@@ -322,21 +342,54 @@ public enum LexerRegistry {
     /// Full filenames (case-sensitive) → Lexilla lexer name.
     /// For files with no extension (Dockerfile, Makefile, etc.) and dotfiles.
     public static let byFilename: [String: String] = [
+        ".babelrc": "json",
+        ".bash_logout": "bash",
+        ".bash_profile": "bash",
         ".bashrc": "bash",
         ".editorconfig": "props",
         ".env": "bash",
+        ".env.development": "bash",
+        ".env.local": "bash",
+        ".env.production": "bash",
+        ".env.test": "bash",
+        ".eslintrc": "json",
+        ".gitattributes": "bash",
         ".gitconfig": "props",
         ".gitignore": "bash",
+        ".gitkeep": "bash",
+        ".gitmodules": "props",
+        ".inputrc": "bash",
+        ".npmrc": "props",
+        ".prettierrc": "json",
         ".profile": "bash",
+        ".yarnrc": "props",
+        ".zlogin": "bash",
+        ".zprofile": "bash",
         ".zshrc": "bash",
+        "Appfile": "ruby",
+        "BUILD": "python",
+        "Berksfile": "ruby",
+        "Brewfile": "ruby",
         "CMakeLists.txt": "cmake",
+        "Capfile": "ruby",
+        "Cargo.lock": "toml",
+        "Containerfile": "bash",
         "Dockerfile": "bash",
         "Fastfile": "ruby",
         "GNUmakefile": "makefile",
         "Gemfile": "ruby",
+        "Gemfile.lock": "ruby",
+        "Guardfile": "ruby",
+        "MODULE.bazel": "python",
         "Makefile": "makefile",
         "Podfile": "ruby",
+        "Podfile.lock": "ruby",
         "Rakefile": "ruby",
+        "Thorfile": "ruby",
+        "Vagrantfile": "ruby",
+        "WORKSPACE": "python",
+        "go.mod": "props",
+        "go.sum": "props",
         "makefile": "makefile",
     ]
 

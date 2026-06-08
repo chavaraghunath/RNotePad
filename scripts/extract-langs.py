@@ -146,8 +146,24 @@ VSCODE_TO_LEXILLA = {
     "vue": "hypertext",
     "svelte": "hypertext",
     "astro": "hypertext",
+    "markdown": "markdown",
     "mdx": "markdown",
     "graphql": "cpp",
+    "terraform": "props",        # HCL — comments + key=value
+    "hcl": "props",
+    "nix": "cpp",                # functional but C-like grammar
+    "proto": "cpp",              # Protocol Buffers — C-like
+    "bicep": "cpp",              # Azure Bicep
+    "gradle": "cpp",             # Groovy
+    "jupyter": "json",           # .ipynb is JSON
+    "gomod": "props",
+    "gosum": "props",
+    "cargo_lock": "toml",
+    "brewfile": "ruby",
+    "ruby":            "ruby",
+    "objective-c":     "cpp",
+    "objective-cpp":   "cpp",
+    "cjs":             "cpp",
     "dockerfile": "bash",         # Dockerfiles tokenize close enough w/ bash
     "dockercompose": "yaml",
     "groovy": "cpp",
@@ -215,7 +231,21 @@ VSCODE_EXTRA_EXTS = {
     "vue":            ["vue"],
     "svelte":         ["svelte"],
     "astro":          ["astro"],
+    "markdown":       ["md", "markdown", "mdown", "mkd"],
     "mdx":            ["mdx"],
+    "terraform":      ["tf", "tfvars"],
+    "hcl":            ["hcl"],
+    "nix":            ["nix"],
+    "proto":          ["proto"],
+    "bicep":          ["bicep"],
+    "gradle":         ["gradle"],
+    "jupyter":        ["ipynb"],
+    "gomod":          ["mod"],     # NB. matches go.mod via the byFilename map
+    "gosum":          ["sum"],     # NB. matches go.sum
+    "cargo_lock":     [],          # Cargo.lock handled by byFilename
+    "brewfile":       [],          # Brewfile handled by byFilename
+    "cjs":            ["cjs"],
+    "ruby":           ["rake", "gemspec", "podspec", "thor", "ru"],
     "graphql":        ["graphql", "graphqls", "gql"],
     "dockerfile":     ["dockerfile"],   # also handled by-name below
     "dockercompose":  ["dockerfile"],
@@ -296,24 +326,64 @@ def build_ext_to_lexer():
 
 
 def build_filename_to_lexer():
-    """Special filenames (no extension) → lexer name."""
+    """Special filenames (no extension or distinctive name) → lexer name."""
     return {
+        # Build / package managers
         "Dockerfile": "bash",
+        "Containerfile": "bash",
         "Makefile": "makefile",
         "makefile": "makefile",
         "GNUmakefile": "makefile",
         "Rakefile": "ruby",
         "Gemfile": "ruby",
+        "Gemfile.lock": "ruby",
         "Podfile": "ruby",
+        "Podfile.lock": "ruby",
         "Fastfile": "ruby",
+        "Appfile": "ruby",
+        "Brewfile": "ruby",
+        "Berksfile": "ruby",
+        "Vagrantfile": "ruby",
+        "Capfile": "ruby",
+        "Guardfile": "ruby",
+        "Thorfile": "ruby",
         "CMakeLists.txt": "cmake",
+        "BUILD": "python",          # Bazel
+        "WORKSPACE": "python",      # Bazel
+        "MODULE.bazel": "python",   # Bazel
+        # Go module files (avoids ambiguity with .mod for Modula-2 etc.)
+        "go.mod": "props",
+        "go.sum": "props",
+        # Rust
+        "Cargo.lock": "toml",
+        # Shell rc / dotfiles
         ".bashrc": "bash",
+        ".bash_profile": "bash",
+        ".bash_logout": "bash",
         ".zshrc": "bash",
+        ".zprofile": "bash",
+        ".zlogin": "bash",
         ".profile": "bash",
+        ".inputrc": "bash",
+        # Git
         ".gitignore": "bash",
+        ".gitattributes": "bash",
         ".gitconfig": "props",
+        ".gitmodules": "props",
+        ".gitkeep": "bash",
+        # Editor / project
         ".editorconfig": "props",
+        ".prettierrc": "json",
+        ".eslintrc": "json",
+        ".babelrc": "json",
+        ".npmrc": "props",
+        ".yarnrc": "props",
+        # Env files
         ".env": "bash",
+        ".env.local": "bash",
+        ".env.development": "bash",
+        ".env.production": "bash",
+        ".env.test": "bash",
     }
 
 
