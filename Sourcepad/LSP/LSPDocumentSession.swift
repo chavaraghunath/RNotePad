@@ -114,6 +114,87 @@ public final class LSPDocumentSession: LSPServerManagerDelegate {
         }
     }
 
+    // MARK: - Goto definition / references
+
+    /// Returns the array of LSP.Location the server points at. Pyright
+    /// returns the symbol's defining range — we'll open that file +
+    /// jump to the line.
+    public func requestDefinition(atCaretByte byte: Int,
+                                  completion: @escaping ([LSP.Location]) -> Void) {
+        sendLocationsRequest(method: "textDocument/definition",
+                             byte: byte, completion: completion)
+    }
+
+    public func requestReferences(atCaretByte byte: Int,
+                                  completion: @escaping ([LSP.Location]) -> Void) {
+        guard let client else { completion([]); return }
+        let pos = LSPDocumentSession.utf16Position(forByteOffset: byte,
+                                                   in: lastSyncedSource)
+        let params: [String: Any] = [
+            "textDocument": ["uri": documentURI],
+            "position": pos.dict,
+            "context": ["includeDeclaration": true],
+        ]
+        client.sendRequest(method: "textDocument/references", params: params) { result in
+            switch result {
+            case .success(let payload):
+                completion(LSPDocumentSession.parseLocations(payload))
+            case .failure:
+                completion([])
+            }
+        }
+    }
+
+    private func sendLocationsRequest(method: String,
+                                      byte: Int,
+                                      completion: @escaping ([LSP.Location]) -> Void) {
+        guard let client else { completion([]); return }
+        let pos = LSPDocumentSession.utf16Position(forByteOffset: byte,
+                                                   in: lastSyncedSource)
+        let params: [String: Any] = [
+            "textDocument": ["uri": documentURI],
+            "position": pos.dict,
+        ]
+        client.sendRequest(method: method, params: params) { result in
+            switch result {
+            case .success(let payload):
+                completion(LSPDocumentSession.parseLocations(payload))
+            case .failure:
+                completion([])
+            }
+        }
+    }
+
+    private static func parseLocations(_ raw: Any?) -> [LSP.Location] {
+        if let single = LSP.Location(raw) { return [single] }
+        if let arr = raw as? [[String: Any]] {
+            return arr.compactMap { LSP.Location($0) }
+        }
+        return []
+    }
+
+    // MARK: - Rename
+
+    /// Returns a WorkspaceEdit-style raw dictionary; caller applies it.
+    public func requestRename(atCaretByte byte: Int,
+                              newName: String,
+                              completion: @escaping (Any?) -> Void) {
+        guard let client else { completion(nil); return }
+        let pos = LSPDocumentSession.utf16Position(forByteOffset: byte,
+                                                   in: lastSyncedSource)
+        let params: [String: Any] = [
+            "textDocument": ["uri": documentURI],
+            "position": pos.dict,
+            "newName": newName,
+        ]
+        client.sendRequest(method: "textDocument/rename", params: params) { result in
+            switch result {
+            case .success(let payload): completion(payload)
+            case .failure:              completion(nil)
+            }
+        }
+    }
+
     // MARK: - LSPServerManagerDelegate
 
     public func lspManager(_ manager: LSPServerManager,

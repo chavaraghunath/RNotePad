@@ -153,6 +153,23 @@ public enum MainMenu {
         hoverItem.keyEquivalentModifierMask = []
         editMenu.addItem(hoverItem)
 
+        // Phase 8 — LSP semantic UX
+        let gotoDef = NSMenuItem(title: "Go to Definition",
+                                 action: Selector(("sourcepadGoToDefinition:")),
+                                 keyEquivalent: String(UnicodeScalar(UInt32(NSF12FunctionKey))!))
+        gotoDef.keyEquivalentModifierMask = []
+        editMenu.addItem(gotoDef)
+        let findRefs = NSMenuItem(title: "Find References",
+                                  action: Selector(("sourcepadFindReferences:")),
+                                  keyEquivalent: String(UnicodeScalar(UInt32(NSF12FunctionKey))!))
+        findRefs.keyEquivalentModifierMask = [.shift]
+        editMenu.addItem(findRefs)
+        let renameSym = NSMenuItem(title: "Rename Symbol…",
+                                   action: Selector(("sourcepadRenameSymbol:")),
+                                   keyEquivalent: "r")
+        renameSym.keyEquivalentModifierMask = [.control, .command]
+        editMenu.addItem(renameSym)
+
         // Smart selection (Phase 5 — Tree-sitter).
         // ⌃⇧→ / ⌃⇧← — expand / shrink to the enclosing syntax node.
         let rightArrow = String(UnicodeScalar(UInt32(NSRightArrowFunctionKey))!)

@@ -146,6 +146,8 @@ SWIFT_SRCS=(
     "$APP_DIR/LSP/LSPHoverPopover.swift"
     "$APP_DIR/LSP/LSPInstaller.swift"
     "$APP_DIR/LSP/LSPDocumentSession.swift"
+    "$APP_DIR/LSP/LSPReferencesWindowController.swift"
+    "$APP_DIR/LSP/LSPWorkspaceEdit.swift"
 )
 
 swiftc "${SWIFT_SRCS[@]}" \

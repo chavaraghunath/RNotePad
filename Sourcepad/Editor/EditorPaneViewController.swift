@@ -178,6 +178,9 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
                                                sciView: sciView) else { return }
         session.start(initialText: source)
         lspSession = session
+        // Enable hover-on-dwell — 500ms idle triggers SCN_DWELLSTART which
+        // the notification dispatcher routes to hover lookup.
+        SciSetMouseDwellTime(sciView, 500)
     }
 
     private func lspSyncChange() {
@@ -197,6 +200,51 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
             } else {
                 NSSound.beep()
             }
+        }
+    }
+
+    @objc public func sourcepadGoToDefinition(_ sender: Any?) {
+        guard let session = lspSession else { NSSound.beep(); return }
+        let caret = currentCaretByte()
+        session.requestDefinition(atCaretByte: caret) { locations in
+            guard let first = locations.first,
+                  let path = LSP.path(forURI: first.uri) else {
+                NSSound.beep(); return
+            }
+            let url = URL(fileURLWithPath: path)
+            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { doc, _, _ in
+                guard let editor = (doc as? TextDocument)?.primaryEditorViewController() else { return }
+                editor.editorPane?.goToLine(first.range.start.line + 1)
+            }
+        }
+    }
+
+    @objc public func sourcepadFindReferences(_ sender: Any?) {
+        guard let session = lspSession else { NSSound.beep(); return }
+        let caret = currentCaretByte()
+        session.requestReferences(atCaretByte: caret) { locations in
+            LSPReferencesWindowController.shared.show(locations: locations)
+        }
+    }
+
+    @objc public func sourcepadRenameSymbol(_ sender: Any?) {
+        guard let session = lspSession else { NSSound.beep(); return }
+        let caret = currentCaretByte()
+        let alert = NameAlert()
+        alert.messageText = "Rename Symbol"
+        alert.informativeText = "New name:"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 22))
+        field.bezelStyle = .roundedBezel
+        alert.accessoryView = field
+        alert.field = field
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        DispatchQueue.main.async { field.becomeFirstResponder() }
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let newName = alert.input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !newName.isEmpty else { return }
+        session.requestRename(atCaretByte: caret, newName: newName) { edit in
+            LSPWorkspaceEditApplier.apply(edit)
         }
     }
 
@@ -448,7 +496,7 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
     // MARK: - Scintilla notifications
 
     private func installNotificationHandler() {
-        SciSetNotificationHandler(sciView) { [weak self] type, _ in
+        SciSetNotificationHandler(sciView) { [weak self] type, detail in
             guard let self else { return }
             switch type {
             case .savePointReached:
@@ -466,14 +514,26 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
                     AutoComplete.update(in: self.sciView, lexer: self.currentLexer)
                 }
                 NotificationCenter.default.post(name: .sourcepadEditorUIDidUpdate, object: self)
+            case .dwellStart:
+                // LSP hover-on-dwell — only fires if a session is active.
+                if let session = self.lspSession,
+                   let pos = (detail?[SciDetailPosition] as? NSNumber)?.intValue {
+                    session.requestHover(atCaretByte: pos) { [weak self] hover in
+                        guard let self, let hover else { return }
+                        LSPHoverPopover.shared.show(markdown: hover.markdown,
+                                                    anchoredTo: self.sciView,
+                                                    atCaretByte: pos)
+                    }
+                }
+            case .dwellEnd:
+                LSPHoverPopover.shared.dismiss()
             case .charAdded,
-                 .dwellStart, .dwellEnd,
                  .zoom,
                  .autoCSelection,
                  .indicatorClick, .indicatorRelease,
                  .marginClick,        // handled via SciSetMarginClickHandler
                  .focusIn, .focusOut:
-                // Subscribers wire in later phases (AI ghost text, LSP hover,
+                // Subscribers wire in later phases (AI ghost text,
                 // signature help, etc.). Acknowledged here so the dispatcher
                 // doesn't appear silent to future readers.
                 break
