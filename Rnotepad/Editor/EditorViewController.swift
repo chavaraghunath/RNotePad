@@ -33,7 +33,10 @@ public final class EditorViewController: NSSplitViewController {
         let pi = NSSplitViewItem(viewController: pp)
         pi.minimumThickness = 240
         pi.canCollapse = true
-        pi.collapseBehavior = .preferResizingSplitViewWithFixedSiblings
+        // Sibling (editor) absorbs the space when collapsing/uncollapsing,
+        // window size stays put. The previous behavior shrank the window
+        // because the split view itself was being resized.
+        pi.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
         pi.holdingPriority = NSLayoutConstraint.Priority(260)
         self.previewItem = pi
 

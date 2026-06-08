@@ -75,6 +75,13 @@ BOOL SciIsModified(NSView *view);
 /// replaces the previous handler.
 void SciSetNotificationHandler(NSView *view, void (^_Nullable handler)(SciNotification type));
 
+// MARK: - Debug
+
+/// Return a multi-line string describing each non-default-styled char in the
+/// first `maxBytes` of the buffer. Format: "offset[style] char". Useful for
+/// diagnosing what the lexer is actually emitting.
+NSString *SciDumpStyles(NSView *view, NSInteger maxBytes);
+
 #ifdef __cplusplus
 }
 #endif

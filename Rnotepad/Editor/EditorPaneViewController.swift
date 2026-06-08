@@ -71,6 +71,11 @@ public final class EditorPaneViewController: NSViewController {
 
     public var activeLexer: String? { currentLexer }
 
+    /// Debug helper: dump the first `maxBytes` of the buffer with their style indices.
+    public func dumpStyles(maxBytes: Int) -> String {
+        return SciDumpStyles(sciView, maxBytes)
+    }
+
     // MARK: - Light/dark hot-swap
 
     private func applyColorScheme() {

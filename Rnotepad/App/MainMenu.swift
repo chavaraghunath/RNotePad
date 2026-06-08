@@ -133,6 +133,13 @@ public enum MainMenu {
         viewMenu.addItem(previewItem)
 
         viewMenu.addItem(.separator())
+        let inspectItem = NSMenuItem(title: "Inspect Lexer Styles → /tmp/rnotepad.log",
+                                     action: #selector(InspectMenuTarget.inspect(_:)),
+                                     keyEquivalent: "")
+        inspectItem.target = InspectMenuTarget.shared
+        viewMenu.addItem(inspectItem)
+
+        viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Enter Full Screen",
                          action: #selector(NSWindow.toggleFullScreen(_:)),
                          keyEquivalent: "f")
@@ -258,6 +265,34 @@ enum LanguageMenu {
             return
         }
         editor.togglePreview()
+    }
+
+    private func activeEditor() -> EditorViewController? {
+        if let doc = NSDocumentController.shared.currentDocument as? TextDocument,
+           let wc = doc.windowControllers.first as? EditorWindowController {
+            return wc.editorViewController
+        }
+        if let vc = NSApp.keyWindow?.contentViewController as? EditorViewController {
+            return vc
+        }
+        return nil
+    }
+}
+
+@objc final class InspectMenuTarget: NSObject {
+    @objc static let shared = InspectMenuTarget()
+
+    @objc func inspect(_ sender: NSMenuItem) {
+        guard let editor = activeEditor() else { NSSound.beep(); return }
+        let pane = editor.editorPane
+        // Reach into the pane to grab its sciView via Mirror — keeping the
+        // bridge boundary clean. Simpler: expose a small accessor on the pane.
+        let dump = pane.dumpStyles(maxBytes: 4000)
+        DebugLog.log("---- lexer style dump for \(editor.activeLexer ?? "plain") ----\n\(dump)\n---- end dump ----")
+        let alert = NSAlert()
+        alert.messageText = "Wrote lexer style dump"
+        alert.informativeText = "Dump saved to /tmp/rnotepad.log. Open Terminal and run:\n\n  tail -200 /tmp/rnotepad.log"
+        alert.runModal()
     }
 
     private func activeEditor() -> EditorViewController? {

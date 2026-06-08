@@ -186,3 +186,36 @@ void SciSetNotificationHandler(NSView *view, void (^handler)(SciNotification typ
     objc_setAssociatedObject(v, &kRNPSciDelegateKey, d, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     v.delegate = d;
 }
+
+// MARK: - Debug
+
+NSString *SciDumpStyles(NSView *view, NSInteger maxBytes) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t length = [v message:SCI_GETLENGTH];
+    sptr_t limit = MIN(length, (sptr_t)maxBytes);
+    NSMutableString *out = [NSMutableString string];
+    [out appendFormat:@"buffer length=%ld; dumping first %ld bytes\n", (long)length, (long)limit];
+    int lastStyle = -1;
+    NSMutableString *run = [NSMutableString string];
+    for (sptr_t i = 0; i < limit; i++) {
+        int ch = (int)[v message:SCI_GETCHARAT wParam:(uptr_t)i lParam:0];
+        int st = (int)[v message:SCI_GETSTYLEAT wParam:(uptr_t)i lParam:0];
+        if (st != lastStyle) {
+            if (lastStyle >= 0) {
+                [out appendFormat:@"  [style %3d] %@\n", lastStyle, run];
+            }
+            [run setString:@""];
+            lastStyle = st;
+        }
+        // Show printable ASCII + escape newlines/tabs.
+        if (ch == '\n') { [run appendString:@"\\n"]; }
+        else if (ch == '\t') { [run appendString:@"\\t"]; }
+        else if (ch == '\r') { [run appendString:@"\\r"]; }
+        else if (ch >= 32 && ch < 127) { [run appendFormat:@"%c", (char)ch]; }
+        else { [run appendFormat:@"\\x%02x", ch & 0xff]; }
+    }
+    if (lastStyle >= 0) {
+        [out appendFormat:@"  [style %3d] %@\n", lastStyle, run];
+    }
+    return out;
+}
