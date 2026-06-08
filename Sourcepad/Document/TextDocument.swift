@@ -119,14 +119,28 @@ public final class TextDocument: NSDocument {
 
     // MARK: - File I/O
 
+    /// True when this document is a raster image (PNG/JPG/etc.). We skip
+    /// the text decode in that case so the editor doesn't show garbage; the
+    /// preview pane handles display.
+    public var isBinaryImage: Bool = false
+
     public override func read(from data: Data, ofType typeName: String) throws {
-        let (text, enc, bom) = TextDocument.decode(data)
-        self.contents = text
-        self.encoding = enc
-        self.hasUTF8BOM = bom
-        self.shebangLexer = TextDocument.detectShebangLexer(from: text)
-        self.lineEndings = TextDocument.detectLineEndings(from: text)
-        // Push to the editor if it's already loaded.
+        let filename = fileURL?.lastPathComponent ?? ""
+        if PreviewRenderer.isBinaryImage(filename: filename) {
+            self.isBinaryImage = true
+            self.contents = ""  // editor stays empty; preview shows the image
+            self.encoding = .utf8
+            self.hasUTF8BOM = false
+            self.shebangLexer = nil
+            self.lineEndings = .lf
+        } else {
+            let (text, enc, bom) = TextDocument.decode(data)
+            self.contents = text
+            self.encoding = enc
+            self.hasUTF8BOM = bom
+            self.shebangLexer = TextDocument.detectShebangLexer(from: text)
+            self.lineEndings = TextDocument.detectLineEndings(from: text)
+        }
         if let editor = primaryEditorViewController() {
             editor.documentContentsDidLoad()
         }

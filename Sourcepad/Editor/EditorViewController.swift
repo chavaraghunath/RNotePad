@@ -87,6 +87,13 @@ public final class EditorViewController: NSSplitViewController {
         if let url = document?.fileURL {
             sidebarPane.setRoot(url.deletingLastPathComponent())
         }
+        // Auto-open the preview pane for images and SVGs.
+        if let url = document?.fileURL,
+           PreviewRenderer.kind(forFilename: url.lastPathComponent, fallbackLexer: nil) == .image
+           || PreviewRenderer.kind(forFilename: url.lastPathComponent, fallbackLexer: nil) == .svg {
+            previewItem.isCollapsed = false
+            schedulePreviewRender(immediate: true)
+        }
         invalidateRestorableState()
     }
 
@@ -189,6 +196,7 @@ public final class EditorViewController: NSSplitViewController {
         let source = editorPane.currentText
         let baseURL = document?.fileURL?.deletingLastPathComponent()
         let isDark = ThemeMode.from(view.effectiveAppearance) == .dark
-        previewPane.render(source: source, kind: kind, baseURL: baseURL, isDark: isDark)
+        previewPane.render(source: source, kind: kind, baseURL: baseURL, isDark: isDark,
+                           fileURL: document?.fileURL)
     }
 }

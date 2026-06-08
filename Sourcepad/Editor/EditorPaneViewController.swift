@@ -325,17 +325,20 @@ public final class EditorPaneViewController: NSViewController {
         SciSetWhitespaceColors(sciView, scheme.whitespaceFg, nil)
         if let lex = currentLexer {
             _ = SciApplyLexer(sciView, lex)
-            // Lexilla's hypertext lexer doesn't sub-lex CSS — post-process to
-            // color content inside <style> blocks.
-            if lex == "hypertext" || lex == "xml" {
-                CSSStyler.applyToHTML(view: sciView, text: SciGetText(sciView))
-            }
         }
-        // Re-enable folding for the current lexer (palette colours flipped).
+        // Folding must be enabled BEFORE the CSSStyler post-pass — setting the
+        // "fold" lexer property triggers a re-tokenize that erases any custom
+        // SCI_STARTSTYLING / SCI_SETSTYLING styles. (Otherwise CSS-in-HTML
+        // coloring would vanish whenever the theme changes.)
         let supports = EditorPaneViewController.lexerSupportsFolding(currentLexer)
         SciEnableFolding(sciView, supports,
                          scheme.lineNumberFg,
                          scheme.defaultBg)
+        if let lex = currentLexer, lex == "hypertext" || lex == "xml" {
+            // Lexilla's hypertext lexer doesn't sub-lex CSS — post-process to
+            // color content inside <style> blocks. Must run AFTER folding setup.
+            CSSStyler.applyToHTML(view: sciView, text: SciGetText(sciView))
+        }
     }
 
     private static let foldableLexers: Set<String> = [

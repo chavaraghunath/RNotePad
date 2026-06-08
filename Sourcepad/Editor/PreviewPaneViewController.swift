@@ -23,17 +23,15 @@ public final class PreviewPaneViewController: NSViewController, WKNavigationDele
         self.webView = wv
     }
 
-    public func render(source: String, kind: PreviewRenderer.Kind, baseURL: URL?, isDark: Bool) {
+    public func render(source: String, kind: PreviewRenderer.Kind, baseURL: URL?, isDark: Bool, fileURL: URL? = nil) {
         guard let webView else { return }
-        // Capture current scroll position; once the JS evaluator returns we
-        // start the actual load. The render call is async-but-fast — no user
-        // perception difference vs synchronous.
         webView.evaluateJavaScript("window.scrollY || 0") { [weak self] result, _ in
             guard let self else { return }
             let y = (result as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
             self.pendingScroll = y
             self.hasPendingScroll = y > 0
-            PreviewRenderer.render(source: source, kind: kind, baseURL: baseURL, isDark: isDark, into: self.webView)
+            PreviewRenderer.render(source: source, kind: kind, baseURL: baseURL,
+                                   isDark: isDark, into: self.webView, fileURL: fileURL)
         }
     }
 
