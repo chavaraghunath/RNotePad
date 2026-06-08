@@ -211,6 +211,11 @@ public enum MainMenu {
                                   keyEquivalent: "g")
         findPrev.keyEquivalentModifierMask = [.command, .shift]
         findMenu.addItem(findPrev)
+        let findInFiles = NSMenuItem(title: "Find in Files…",
+                                     action: Selector(("sourcepadOpenFindInFiles:")),
+                                     keyEquivalent: "f")
+        findInFiles.keyEquivalentModifierMask = [.command, .shift]
+        findMenu.addItem(findInFiles)
         editMenu.addItem(find)
 
         // MARK: View menu — Theme submenu

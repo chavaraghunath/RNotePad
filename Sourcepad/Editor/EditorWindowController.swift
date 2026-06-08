@@ -251,6 +251,14 @@ public final class EditorWindowController: NSWindowController,
         field.selectText(nil)
     }
 
+    @objc public func sourcepadOpenFindInFiles(_ sender: Any?) {
+        // Default search root = the sidebar's current root, fall back to the
+        // document's enclosing folder.
+        let root = editorViewController.sidebarPane.rootURL
+            ?? editorViewController.document?.fileURL?.deletingLastPathComponent()
+        FindInFilesWindowController.shared.show(searchingIn: root)
+    }
+
     // MARK: - NSWindow drag-and-drop (catches drops on title bar)
 
     public func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {

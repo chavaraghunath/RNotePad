@@ -155,6 +155,11 @@ public final class EditorPaneViewController: NSViewController {
         return r.location == NSNotFound ? 0 : Int(r.length)
     }
 
+    /// Public wrapper used by external callers (e.g. Find in Files results).
+    public func goToLine(_ line1Based: Int) {
+        SciGoToLine(sciView, line1Based)
+    }
+
     /// Replace the full buffer (used by EOL conversion in the status bar).
     /// Preserves caret position by clamping to new length.
     public func replaceWholeBuffer(with text: String) {

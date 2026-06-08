@@ -60,6 +60,8 @@ SWIFT_SRCS=(
     "$APP_DIR/Editor/AutoPair.swift"
     "$APP_DIR/Editor/CommentSyntax.swift"
     "$APP_DIR/Editor/Bookmarks.swift"
+    "$APP_DIR/Search/FindInFilesEngine.swift"
+    "$APP_DIR/Search/FindInFilesWindowController.swift"
     "$APP_DIR/Document/TextDocument.swift"
     "$APP_DIR/Document/DocumentController.swift"
     "$APP_DIR/Document/ExternalChangeWatcher.swift"
