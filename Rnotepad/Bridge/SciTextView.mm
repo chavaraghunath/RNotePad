@@ -67,6 +67,105 @@ static Lexilla::CreateLexerFn LoadCreateLexer() {
     return fn;
 }
 
+// Per-lexer default keyword sets. Lexilla doesn't ship with hard-coded
+// keyword lists — the host app must register them via SCI_SETKEYWORDS, or
+// lexers can't distinguish keywords from identifiers.
+//
+// Keys are Lexilla lexer names. Values are arrays indexed by keyword-set slot
+// (0 = primary, 1 = secondary, etc.). Empty strings skip a slot.
+static NSDictionary<NSString *, NSArray<NSString *> *> *DefaultKeywords() {
+    static NSDictionary *table = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSString *cppKw =
+            @"alignas alignof and and_eq asm auto bitand bitor bool break case "
+            @"catch char char8_t char16_t char32_t class compl concept const "
+            @"consteval constexpr constinit const_cast continue co_await "
+            @"co_return co_yield decltype default delete do double dynamic_cast "
+            @"else enum explicit export extern false float for friend goto if "
+            @"inline int long mutable namespace new noexcept not not_eq nullptr "
+            @"operator or or_eq private protected public register "
+            @"reinterpret_cast requires return short signed sizeof static "
+            @"static_assert static_cast struct switch template this thread_local "
+            @"throw true try typedef typeid typename union unsigned using "
+            @"virtual void volatile wchar_t while xor xor_eq "
+            @"abstract async await debugger declare extends finally function "
+            @"implements import in instanceof interface let module of package "
+            @"super throws transient yield from as is keyof readonly never "
+            @"any undefined "
+            @"defer fallthrough func go guard map mut pub repeat rune select "
+            @"trait type var where with";
+
+        NSString *htmlTags =
+            @"a abbr acronym address applet area article aside audio b base "
+            @"basefont bdi bdo big blockquote body br button canvas caption "
+            @"center cite code col colgroup data datalist dd del details dfn "
+            @"dialog dir div dl dt em embed fieldset figcaption figure font "
+            @"footer form frame frameset h1 h2 h3 h4 h5 h6 head header hr html "
+            @"i iframe img input ins kbd label legend li link main map mark "
+            @"menu meta meter nav noframes noscript object ol optgroup option "
+            @"output p param picture pre progress q rp rt ruby s samp script "
+            @"section select small source span strike strong style sub summary "
+            @"sup svg table tbody td template textarea tfoot th thead time "
+            @"title tr track tt u ul var video wbr";
+
+        NSString *jsKw =
+            @"abstract arguments async await boolean break byte case catch char "
+            @"class const continue debugger default delete do double else enum "
+            @"eval export extends false final finally float for function goto "
+            @"if implements import in instanceof int interface let long native "
+            @"new null of package private protected public return short static "
+            @"super switch synchronized this throw throws transient true try "
+            @"typeof undefined var void volatile while with yield";
+
+        NSString *pyKw =
+            @"False None True and as assert async await break class continue "
+            @"def del elif else except finally for from global if import in is "
+            @"lambda nonlocal not or pass raise return try while with yield "
+            @"match case self";
+
+        NSString *sqlKw =
+            @"add all alter and any as asc backup between by case check column "
+            @"constraint create database default delete desc distinct drop "
+            @"exec exists foreign from full group having if in index inner "
+            @"insert into is join key left like limit not null on or order "
+            @"outer primary procedure right select set table top truncate "
+            @"union unique update values view where";
+
+        NSString *bashKw =
+            @"alias bg bind break builtin case cd command compgen complete "
+            @"continue declare dirs disown do done echo elif else esac eval "
+            @"exec exit export false fc fg fi for function getopts hash help "
+            @"history if in jobs kill let local logout popd printf pushd pwd "
+            @"read readonly return select set shift shopt source suspend test "
+            @"then time times trap true type typeset ulimit umask unalias "
+            @"unset until wait while";
+
+        NSString *rubyKw =
+            @"BEGIN END alias and begin break case class def defined do else "
+            @"elsif end ensure false for if in module next nil not or redo "
+            @"rescue retry return self super then true undef unless until "
+            @"when while yield";
+
+        NSString *luaKw =
+            @"and break do else elseif end false for function goto if in "
+            @"local nil not or repeat return then true until while";
+
+        table = @{
+            @"cpp":       @[ cppKw ],
+            @"hypertext": @[ htmlTags, jsKw ],
+            @"xml":       @[ htmlTags ],
+            @"python":    @[ pyKw ],
+            @"sql":       @[ sqlKw ],
+            @"mssql":     @[ sqlKw ],
+            @"bash":      @[ bashKw ],
+            @"ruby":      @[ rubyKw ],
+            @"lua":       @[ luaKw ],
+        };
+    });
+    return table;
+}
+
 BOOL SciApplyLexer(NSView *view, NSString *lexerName) {
     ScintillaView *v = (ScintillaView *)view;
     if (!lexerName || lexerName.length == 0) {
@@ -83,9 +182,20 @@ BOOL SciApplyLexer(NSView *view, NSString *lexerName) {
         return NO;
     }
     [v setReferenceProperty:SCI_SETILEXER parameter:0 value:lexer];
+
+    // Register default keyword sets per lexer so it can distinguish keywords
+    // from identifiers (otherwise everything ends up as IDENTIFIER tokens).
+    if (NSArray<NSString *> *sets = DefaultKeywords()[lexerName]) {
+        for (NSInteger slot = 0; slot < (NSInteger)sets.count; slot++) {
+            NSString *kw = sets[slot];
+            if (kw.length > 0) {
+                [v setReferenceProperty:SCI_SETKEYWORDS parameter:(int)slot value:[kw UTF8String]];
+            }
+        }
+    }
+
     // Force a full re-tokenization so existing buffer text picks up the new
-    // lexer's style assignments (especially important when switching lexers
-    // or when style palette was extended after the buffer was first lexed).
+    // lexer's style assignments + freshly-registered keywords.
     [v message:SCI_COLOURISE wParam:0 lParam:-1];
     return YES;
 }
