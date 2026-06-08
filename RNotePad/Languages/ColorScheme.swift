@@ -170,6 +170,7 @@ private func jsonStyles(_ mode: ThemeMode) -> [Int: S] {
 }
 
 // HTML / XML (Lexilla hypertext + xml use the same SCE_H_* style indices).
+// Also covers embedded JavaScript (SCE_HJ_*, 40-53) and embedded PHP (104-127).
 private func htmlStyles(_ mode: ThemeMode) -> [Int: S] {
     let c = mode == .light
     return [
@@ -198,6 +199,35 @@ private func htmlStyles(_ mode: ThemeMode) -> [Int: S] {
         24: S(fg: c ? Palette.lightString    : Palette.darkString),
         25: S(fg: c ? Palette.lightString    : Palette.darkString),
         29: S(fg: c ? Palette.lightComment   : Palette.darkComment),
+        // Embedded JavaScript (SCE_HJ_*)
+        40: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // HJ_START
+        41: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // HJ_DEFAULT
+        42: S(fg: c ? Palette.lightComment   : Palette.darkComment),   // HJ_COMMENT
+        43: S(fg: c ? Palette.lightComment   : Palette.darkComment),   // HJ_COMMENTLINE
+        44: S(fg: c ? Palette.lightComment   : Palette.darkComment),   // HJ_COMMENTDOC
+        45: S(fg: c ? Palette.lightNumber    : Palette.darkNumber),    // HJ_NUMBER
+        46: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),  // HJ_WORD (identifier)
+        47: S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),   // HJ_KEYWORD
+        48: S(fg: c ? Palette.lightString    : Palette.darkString),    // HJ_DOUBLESTRING
+        49: S(fg: c ? Palette.lightString    : Palette.darkString),    // HJ_SINGLESTRING
+        50: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),  // HJ_SYMBOLS
+        51: S(fg: c ? Palette.lightString    : Palette.darkString),    // HJ_STRINGEOL
+        52: S(fg: c ? Palette.lightRegex     : Palette.darkRegex),     // HJ_REGEX
+        53: S(fg: c ? Palette.lightString    : Palette.darkString),    // HJ_TEMPLATELITERAL
+        // ASP-embedded JS (SCE_HJA_*, 55-67) — same colors
+        55: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),
+        56: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),
+        57: S(fg: c ? Palette.lightComment   : Palette.darkComment),
+        58: S(fg: c ? Palette.lightComment   : Palette.darkComment),
+        59: S(fg: c ? Palette.lightComment   : Palette.darkComment),
+        60: S(fg: c ? Palette.lightNumber    : Palette.darkNumber),
+        61: S(fg: c ? Palette.lightVariable  : Palette.darkVariable),
+        62: S(fg: c ? Palette.lightKeyword   : Palette.darkKeyword),
+        63: S(fg: c ? Palette.lightString    : Palette.darkString),
+        64: S(fg: c ? Palette.lightString    : Palette.darkString),
+        65: S(fg: c ? Palette.lightOperator  : Palette.darkOperator),
+        66: S(fg: c ? Palette.lightString    : Palette.darkString),
+        67: S(fg: c ? Palette.lightRegex     : Palette.darkRegex),
     ]
 }
 
