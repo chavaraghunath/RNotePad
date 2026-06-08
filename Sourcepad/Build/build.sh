@@ -62,6 +62,7 @@ SWIFT_SRCS=(
     "$APP_DIR/Editor/FileDropOverlay.swift"
     "$APP_DIR/Editor/PreviewRenderer.swift"
     "$APP_DIR/Editor/CSSStyler.swift"
+    "$APP_DIR/Editor/FindBar.swift"
     "$APP_DIR/Languages/LexerRegistry.swift"
     "$APP_DIR/Languages/ColorScheme.swift"
 )

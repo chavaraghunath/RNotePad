@@ -102,6 +102,27 @@ public enum MainMenu {
                          action: #selector(NSText.selectAll(_:)),
                          keyEquivalent: "a")
 
+        editMenu.addItem(.separator())
+        let find = NSMenuItem(title: "Find", action: nil, keyEquivalent: "")
+        let findMenu = NSMenu(title: "Find")
+        find.submenu = findMenu
+
+        findMenu.addItem(withTitle: "Find…",
+                         action: Selector(("sourcepadShowFind:")),
+                         keyEquivalent: "f")
+        findMenu.addItem(withTitle: "Find and Replace…",
+                         action: Selector(("sourcepadShowFindReplace:")),
+                         keyEquivalent: "f").keyEquivalentModifierMask = [.command, .option]
+        findMenu.addItem(withTitle: "Find Next",
+                         action: Selector(("sourcepadFindNext:")),
+                         keyEquivalent: "g")
+        let findPrev = NSMenuItem(title: "Find Previous",
+                                  action: Selector(("sourcepadFindPrevious:")),
+                                  keyEquivalent: "g")
+        findPrev.keyEquivalentModifierMask = [.command, .shift]
+        findMenu.addItem(findPrev)
+        editMenu.addItem(find)
+
         // MARK: View menu — Theme submenu
         let viewItem = NSMenuItem()
         menubar.addItem(viewItem)

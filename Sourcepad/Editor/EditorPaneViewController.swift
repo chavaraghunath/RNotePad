@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Sourcepad — left pane of the editor split. Hosts the Scintilla NSView, the
-// file-drop overlay, and the appearance-change forwarder.
+// file-drop overlay, the appearance-change forwarder, and the find/replace bar.
 
 import AppKit
 
@@ -11,6 +11,8 @@ public final class EditorPaneViewController: NSViewController {
 
     private var sciView: NSView!
     private var currentLexer: String?
+    private var findBar: FindBar!
+    private var findBarHeight: NSLayoutConstraint!
 
     public init(document: TextDocument) {
         self.document = document
@@ -24,19 +26,48 @@ public final class EditorPaneViewController: NSViewController {
     public override func loadView() {
         let root = AppearanceForwardingView(frame: NSRect(x: 0, y: 0, width: 600, height: 600))
         root.onAppearanceChange = { [weak self] in self?.applyColorScheme() }
-        root.autoresizingMask = [.width, .height]
 
-        let editor = SciMakeView(root.bounds)
+        // Find bar at the top, height 0 by default (hidden).
+        let bar = FindBar()
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        bar.onClose = { [weak self] in self?.hideFindBar() }
+        root.addSubview(bar)
+        self.findBar = bar
+
+        // Editor container — sits below find bar, fills remaining space.
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(container)
+
+        let heightConstraint = bar.heightAnchor.constraint(equalToConstant: 0)
+        self.findBarHeight = heightConstraint
+
+        NSLayoutConstraint.activate([
+            bar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            bar.topAnchor.constraint(equalTo: root.topAnchor),
+            heightConstraint,
+
+            container.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            container.topAnchor.constraint(equalTo: bar.bottomAnchor),
+            container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+        ])
+
+        // Scintilla view + drop overlay use autoresizing inside the container.
+        let editor = SciMakeView(NSRect(x: 0, y: 0, width: 600, height: 600))
         editor.autoresizingMask = [.width, .height]
-        root.addSubview(editor)
+        container.addSubview(editor)
         self.sciView = editor
 
-        let dropOverlay = FileDropOverlay(frame: root.bounds)
+        let dropOverlay = FileDropOverlay(frame: editor.frame)
         dropOverlay.autoresizingMask = [.width, .height]
-        root.addSubview(dropOverlay)
+        container.addSubview(dropOverlay)
 
         SciShowLineNumbers(editor, true)
         installNotificationHandler()
+        bar.editorView = editor
+
         self.view = root
     }
 
@@ -74,6 +105,43 @@ public final class EditorPaneViewController: NSViewController {
     /// Debug helper: dump the first `maxBytes` of the buffer with their style indices.
     public func dumpStyles(maxBytes: Int) -> String {
         return SciDumpStyles(sciView, maxBytes)
+    }
+
+    // MARK: - Find bar
+
+    public func showFindBar(prefill: String? = nil, withReplace: Bool = false) {
+        findBarHeight.constant = withReplace ? 66 : 34
+        findBar.show(prefill: prefill, withReplace: withReplace)
+    }
+
+    public func hideFindBar() {
+        findBarHeight.constant = 0
+        view.window?.makeFirstResponder(sciView)
+    }
+
+    public var isFindBarVisible: Bool { findBarHeight.constant > 0 }
+
+    public func findBarNext()     { findBar.findNext(nil) }
+    public func findBarPrevious() { findBar.findPrevious(nil) }
+
+    // Responder-chain entry points wired from MainMenu (nil-target items).
+
+    @objc public func sourcepadShowFind(_ sender: Any?) {
+        showFindBar(prefill: nil, withReplace: false)
+    }
+
+    @objc public func sourcepadShowFindReplace(_ sender: Any?) {
+        showFindBar(prefill: nil, withReplace: true)
+    }
+
+    @objc public func sourcepadFindNext(_ sender: Any?) {
+        if !isFindBarVisible { showFindBar() }
+        findBarNext()
+    }
+
+    @objc public func sourcepadFindPrevious(_ sender: Any?) {
+        if !isFindBarVisible { showFindBar() }
+        findBarPrevious()
     }
 
     // MARK: - Light/dark hot-swap

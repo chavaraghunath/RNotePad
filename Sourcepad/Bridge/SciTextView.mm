@@ -334,6 +334,78 @@ NSString *SciDumpStyles(NSView *view, NSInteger maxBytes) {
 
 // MARK: - Manual styling
 
+// MARK: - Find / Replace
+
+NSRange SciFind(NSView *view,
+                NSString *pattern,
+                SciFindFlags flags,
+                NSInteger startByte,
+                NSInteger endByte) {
+    if (pattern.length == 0) return NSMakeRange(NSNotFound, 0);
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t docLen = [v message:SCI_GETLENGTH];
+    if (endByte < 0 || endByte > docLen) endByte = docLen;
+    if (startByte < 0) startByte = 0;
+    if (startByte > endByte) return NSMakeRange(NSNotFound, 0);
+
+    const char *utf8 = [pattern UTF8String];
+    sptr_t patLen = (sptr_t)strlen(utf8);
+
+    [v message:SCI_SETSEARCHFLAGS wParam:(uptr_t)flags lParam:0];
+    [v message:SCI_SETTARGETSTART wParam:(uptr_t)startByte lParam:0];
+    [v message:SCI_SETTARGETEND   wParam:(uptr_t)endByte   lParam:0];
+    sptr_t found = [v message:SCI_SEARCHINTARGET wParam:(uptr_t)patLen lParam:(sptr_t)utf8];
+    if (found < 0) return NSMakeRange(NSNotFound, 0);
+
+    sptr_t matchStart = [v message:SCI_GETTARGETSTART];
+    sptr_t matchEnd   = [v message:SCI_GETTARGETEND];
+    if (matchEnd < matchStart) return NSMakeRange(NSNotFound, 0);
+    return NSMakeRange((NSUInteger)matchStart, (NSUInteger)(matchEnd - matchStart));
+}
+
+NSRange SciGetSelectionBytes(NSView *view) {
+    ScintillaView *v = (ScintillaView *)view;
+    sptr_t s = [v message:SCI_GETSELECTIONSTART];
+    sptr_t e = [v message:SCI_GETSELECTIONEND];
+    if (e < s) e = s;
+    return NSMakeRange((NSUInteger)s, (NSUInteger)(e - s));
+}
+
+void SciSetSelectionBytes(NSView *view, NSInteger startByte, NSInteger endByte) {
+    ScintillaView *v = (ScintillaView *)view;
+    if (startByte < 0) startByte = 0;
+    if (endByte < startByte) endByte = startByte;
+    [v message:SCI_SETSEL wParam:(uptr_t)startByte lParam:(sptr_t)endByte];
+    [v message:SCI_SCROLLCARET];
+}
+
+NSInteger SciTextLengthBytes(NSView *view) {
+    return (NSInteger)[(ScintillaView *)view message:SCI_GETLENGTH];
+}
+
+NSInteger SciReplaceBytesRange(NSView *view,
+                               NSInteger startByte,
+                               NSInteger endByte,
+                               NSString *replacement) {
+    ScintillaView *v = (ScintillaView *)view;
+    if (startByte < 0) startByte = 0;
+    if (endByte < startByte) endByte = startByte;
+    const char *utf8 = [replacement UTF8String] ?: "";
+    sptr_t repLen = (sptr_t)strlen(utf8);
+    [v message:SCI_SETTARGETSTART wParam:(uptr_t)startByte lParam:0];
+    [v message:SCI_SETTARGETEND   wParam:(uptr_t)endByte   lParam:0];
+    [v message:SCI_REPLACETARGET  wParam:(uptr_t)repLen   lParam:(sptr_t)utf8];
+    return startByte + (NSInteger)repLen;
+}
+
+void SciBeginUndoAction(NSView *view) {
+    [(ScintillaView *)view message:SCI_BEGINUNDOACTION];
+}
+
+void SciEndUndoAction(NSView *view) {
+    [(ScintillaView *)view message:SCI_ENDUNDOACTION];
+}
+
 void SciSetCustomStyleUTF16(NSView *view, NSInteger utf16Start, NSInteger utf16Length, int style) {
     if (utf16Length <= 0) return;
     ScintillaView *v = (ScintillaView *)view;

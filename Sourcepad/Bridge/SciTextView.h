@@ -90,6 +90,51 @@ NSString *SciDumpStyles(NSView *view, NSInteger maxBytes);
 /// so non-ASCII text works correctly. Safe to call repeatedly.
 void SciSetCustomStyleUTF16(NSView *view, NSInteger utf16Start, NSInteger utf16Length, int style);
 
+// MARK: - Find / Replace
+//
+// All positions in this section are BYTE offsets into the UTF-8 buffer (the
+// native Scintilla coordinate system). For pure-ASCII text this is the same as
+// character count; for multi-byte UTF-8 it isn't. The find bar passes UTF-8
+// patterns via NSString.UTF8String and treats results as opaque byte ranges
+// (selection/replacement work uniformly in byte space).
+
+typedef NS_OPTIONS(int, SciFindFlags) {
+    SciFindNone       = 0,
+    SciFindMatchCase  = 0x4,        // SCFIND_MATCHCASE
+    SciFindWholeWord  = 0x2,        // SCFIND_WHOLEWORD
+    SciFindWordStart  = 0x100000,   // SCFIND_WORDSTART
+    SciFindRegex      = 0x200000,   // SCFIND_REGEXP (Scintilla's basic regex)
+};
+
+/// Search for `pattern` (as UTF-8 bytes) within byte range [startByte, endByte).
+/// Pass `endByte = -1` to search through end of buffer.
+/// Returns `{NSNotFound, 0}` if not found, otherwise `{matchStartByte, matchLengthBytes}`.
+NSRange SciFind(NSView *view,
+                NSString *pattern,
+                SciFindFlags flags,
+                NSInteger startByte,
+                NSInteger endByte);
+
+/// Current selection as byte range. Empty selection has length 0.
+NSRange SciGetSelectionBytes(NSView *view);
+
+/// Set selection by byte positions and ensure caret is visible.
+void SciSetSelectionBytes(NSView *view, NSInteger startByte, NSInteger endByte);
+
+/// Total document length in bytes.
+NSInteger SciTextLengthBytes(NSView *view);
+
+/// Replace the byte range [startByte, endByte) with `replacement` (UTF-8).
+/// Returns the new end-of-replacement byte position (startByte + replacement byte length).
+NSInteger SciReplaceBytesRange(NSView *view,
+                               NSInteger startByte,
+                               NSInteger endByte,
+                               NSString *replacement);
+
+/// Group subsequent edits into a single undo step. Must be balanced.
+void SciBeginUndoAction(NSView *view);
+void SciEndUndoAction(NSView *view);
+
 #ifdef __cplusplus
 }
 #endif
