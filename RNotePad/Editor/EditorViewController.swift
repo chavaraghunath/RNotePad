@@ -74,6 +74,17 @@ public final class EditorViewController: NSViewController {
         SciSetSavePoint(sciView)
     }
 
+    /// Force a specific Lexilla lexer (e.g. via View → Language menu). Pass
+    /// `nil` to clear and revert to plain text.
+    public func setLexer(_ name: String?) {
+        currentLexer = name
+        _ = SciApplyLexer(sciView, name)
+        applyColorScheme()
+    }
+
+    /// Name of the currently-active lexer (or `nil` if plain text).
+    public var activeLexer: String? { currentLexer }
+
     // MARK: - Light/dark hot-swap
 
     private func applyColorScheme() {

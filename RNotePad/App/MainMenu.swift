@@ -115,6 +115,15 @@ public enum MainMenu {
         themeMenu.addItem(makeThemeItem(title: "Light", appearance: .aqua))
         themeMenu.addItem(makeThemeItem(title: "Dark", appearance: .darkAqua))
         viewMenu.addItem(theme)
+
+        let lang = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
+        let langMenu = NSMenu(title: "Language")
+        lang.submenu = langMenu
+        for (label, lexerName) in LanguageMenu.entries {
+            langMenu.addItem(makeLangItem(title: label, lexer: lexerName))
+        }
+        viewMenu.addItem(lang)
+
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: "Enter Full Screen",
                          action: #selector(NSWindow.toggleFullScreen(_:)),
@@ -149,6 +158,74 @@ public enum MainMenu {
         item.target = ThemeMenuTarget.shared
         item.representedObject = appearance?.rawValue
         return item
+    }
+
+    private static func makeLangItem(title: String, lexer: String?) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(LangMenuTarget.setLanguage(_:)), keyEquivalent: "")
+        item.target = LangMenuTarget.shared
+        item.representedObject = lexer  // may be nil for "Plain Text"
+        return item
+    }
+}
+
+enum LanguageMenu {
+    /// Short list of common languages. Maps user-visible name → Lexilla lexer
+    /// name. nil means "no syntax highlighting".
+    static let entries: [(String, String?)] = [
+        ("Plain Text", nil),
+        ("C / C++ / Java / Swift / Go / JS / TS / Kotlin / Rust / C#", "cpp"),
+        ("Python", "python"),
+        ("JSON", "json"),
+        ("XML", "xml"),
+        ("HTML", "hypertext"),
+        ("CSS", "css"),
+        ("YAML", "yaml"),
+        ("Markdown", "markdown"),
+        ("SQL", "sql"),
+        ("Bash / Shell", "bash"),
+        ("PHP", "phpscript"),
+        ("Ruby", "ruby"),
+        ("Lua", "lua"),
+        ("Perl", "perl"),
+        ("Makefile", "makefile"),
+        ("CMake", "cmake"),
+        ("TOML", "toml"),
+        ("Diff", "diff"),
+        ("Properties / INI", "props"),
+        ("Assembly", "asm"),
+        ("Pascal", "pascal"),
+        ("Haskell", "haskell"),
+        ("Lisp / Scheme / Clojure", "lisp"),
+        ("R", "r"),
+        ("Matlab", "matlab"),
+        ("PowerShell", "powershell"),
+        ("Batch", "batch"),
+        ("LaTeX", "latex"),
+        ("VHDL", "vhdl"),
+        ("Verilog", "verilog"),
+    ]
+}
+
+@objc final class LangMenuTarget: NSObject {
+    @objc static let shared = LangMenuTarget()
+
+    @objc func setLanguage(_ sender: NSMenuItem) {
+        guard let vc = LangMenuTarget.activeEditor() else { return }
+        let lexer = sender.representedObject as? String  // nil → plain text
+        vc.setLexer(lexer)
+    }
+
+    private static func activeEditor() -> EditorViewController? {
+        // Most recently active document's first window controller's content VC.
+        if let doc = NSDocumentController.shared.currentDocument as? TextDocument,
+           let wc = doc.windowControllers.first as? EditorWindowController {
+            return wc.editorViewController
+        }
+        // Fallback: any key-window's content VC.
+        if let vc = NSApp.keyWindow?.contentViewController as? EditorViewController {
+            return vc
+        }
+        return nil
     }
 }
 
