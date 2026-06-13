@@ -83,7 +83,233 @@
                 <string>public.tab-separated-values-text</string>
                 <string>net.daringfireball.markdown</string>
                 <string>com.apple.property-list</string>
+                <string>com.apple.xcode.strings-text</string>
+                <string>com.apple.dt.document.script</string>
+                <string>public.assembly-source</string>
+                <string>public.fortran-source</string>
+                <string>public.fortran-77-source</string>
+                <string>public.fortran-90-source</string>
+                <string>public.fortran-95-source</string>
+                <string>public.lisp-source</string>
+                <string>public.haskell-source</string>
+                <string>public.pascal-source</string>
+                <string>public.ada-source</string>
+                <string>public.lua-script</string>
+                <string>public.tcl-script</string>
+                <string>public.csh-script</string>
+                <string>public.zsh-script</string>
+                <string>public.bash-script</string>
+                <string>public.utf8-plain-text</string>
+                <string>public.utf16-plain-text</string>
+                <string>public.utf16-external-plain-text</string>
+                <string>public.log</string>
                 <string>org.gnu.gnu-tar-archive</string>
+            </array>
+            <key>NSDocumentClass</key>
+            <string>SPTextDocument</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Source / Config Files</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <!-- Extension-based fallback for file types that have no public UTI.
+                 Lets Finder's "Open With" surface Sourcepad for modern config,
+                 build, language, and template files. -->
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <!-- programming languages (modern + niche) -->
+                <string>agda</string>
+                <string>ahk</string>
+                <string>applescript</string>
+                <string>awk</string>
+                <string>bzl</string>
+                <string>capnp</string>
+                <string>cue</string>
+                <string>dhall</string>
+                <string>fbs</string>
+                <string>gleam</string>
+                <string>ha</string>
+                <string>hack</string>
+                <string>hx</string>
+                <string>idl</string>
+                <string>idr</string>
+                <string>jq</string>
+                <string>jsonnet</string>
+                <string>jxa</string>
+                <string>lagda</string>
+                <string>lean</string>
+                <string>libsonnet</string>
+                <string>lidr</string>
+                <string>mojo</string>
+                <string>nickel</string>
+                <string>nim</string>
+                <string>nims</string>
+                <string>nix</string>
+                <string>nu</string>
+                <string>odin</string>
+                <string>pony</string>
+                <string>purs</string>
+                <string>re</string>
+                <string>rei</string>
+                <string>res</string>
+                <string>resi</string>
+                <string>roc</string>
+                <string>ron</string>
+                <string>sol</string>
+                <string>stan</string>
+                <string>v</string>
+                <string>vala</string>
+                <string>wl</string>
+                <string>wls</string>
+                <string>xsh</string>
+                <string>zig</string>
+                <!-- shaders / graphics -->
+                <string>comp</string>
+                <string>frag</string>
+                <string>fx</string>
+                <string>fxh</string>
+                <string>gdshader</string>
+                <string>geom</string>
+                <string>glsl</string>
+                <string>hlsl</string>
+                <string>metal</string>
+                <string>tesc</string>
+                <string>tese</string>
+                <string>vert</string>
+                <string>wgsl</string>
+                <!-- web templates -->
+                <string>astro</string>
+                <string>cshtml</string>
+                <string>eex</string>
+                <string>erb</string>
+                <string>haml</string>
+                <string>handlebars</string>
+                <string>hbs</string>
+                <string>heex</string>
+                <string>jinja</string>
+                <string>jinja2</string>
+                <string>j2</string>
+                <string>leex</string>
+                <string>liquid</string>
+                <string>marko</string>
+                <string>mustache</string>
+                <string>razor</string>
+                <string>rhtml</string>
+                <string>slim</string>
+                <string>svelte</string>
+                <string>twig</string>
+                <string>vue</string>
+                <!-- documentation / markup -->
+                <string>adoc</string>
+                <string>asciidoc</string>
+                <string>bib</string>
+                <string>bibtex</string>
+                <string>creole</string>
+                <string>mdc</string>
+                <string>mdx</string>
+                <string>org</string>
+                <string>qmd</string>
+                <string>rmarkdown</string>
+                <string>rmd</string>
+                <string>rst</string>
+                <string>textile</string>
+                <string>typ</string>
+                <!-- LaTeX family -->
+                <string>cls</string>
+                <string>dtx</string>
+                <string>ins</string>
+                <string>ltx</string>
+                <string>sty</string>
+                <string>tex</string>
+                <!-- data formats -->
+                <string>avsc</string>
+                <string>geojson</string>
+                <string>har</string>
+                <string>json5</string>
+                <string>jsonc</string>
+                <string>jsonl</string>
+                <string>ndjson</string>
+                <string>proto</string>
+                <string>thrift</string>
+                <string>topojson</string>
+                <string>toml</string>
+                <string>webmanifest</string>
+                <!-- config / env / version -->
+                <string>cff</string>
+                <string>cfg</string>
+                <string>conf</string>
+                <string>editorconfig</string>
+                <string>env</string>
+                <string>hcl</string>
+                <string>ini</string>
+                <string>kdl</string>
+                <string>properties</string>
+                <string>tf</string>
+                <string>tfvars</string>
+                <string>xcconfig</string>
+                <!-- Apple / iOS -->
+                <string>entitlements</string>
+                <string>plist</string>
+                <string>storyboard</string>
+                <string>strings</string>
+                <string>stringsdict</string>
+                <string>xib</string>
+                <!-- shells / scripts -->
+                <string>bash</string>
+                <string>bat</string>
+                <string>cmd</string>
+                <string>fish</string>
+                <string>ksh</string>
+                <string>ps1</string>
+                <string>psd1</string>
+                <string>psm1</string>
+                <string>sh</string>
+                <string>tcsh</string>
+                <string>zsh</string>
+                <!-- build / dev tooling -->
+                <string>dockerfile</string>
+                <string>containerfile</string>
+                <string>dockerignore</string>
+                <string>gradle</string>
+                <string>justfile</string>
+                <string>mak</string>
+                <string>makefile</string>
+                <string>mk</string>
+                <string>ninja</string>
+                <string>sbt</string>
+                <!-- diff / patch / log -->
+                <string>diff</string>
+                <string>log</string>
+                <string>patch</string>
+                <!-- Game / Godot -->
+                <string>gd</string>
+                <string>tres</string>
+                <string>tscn</string>
+                <!-- localization / certs (often plain text) -->
+                <string>asc</string>
+                <string>cer</string>
+                <string>crt</string>
+                <string>csr</string>
+                <string>key</string>
+                <string>pem</string>
+                <string>pgp</string>
+                <string>pub</string>
+                <!-- SQL dialects -->
+                <string>pgsql</string>
+                <string>psql</string>
+                <string>tsql</string>
+                <!-- misc -->
+                <string>graphql</string>
+                <string>graphqls</string>
+                <string>gql</string>
+                <string>feature</string>
+                <string>ipynb</string>
+                <string>po</string>
+                <string>pot</string>
+                <string>psv</string>
             </array>
             <key>NSDocumentClass</key>
             <string>SPTextDocument</string>
@@ -121,6 +347,22 @@
             <key>LSItemContentTypes</key>
             <array>
                 <string>public.svg-image</string>
+            </array>
+            <key>NSDocumentClass</key>
+            <string>SPTextDocument</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Citation File Format</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <!-- .cff is a YAML-based citation format with no public UTI;
+                 declare by extension so Finder's Open With surfaces us. -->
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>cff</string>
             </array>
             <key>NSDocumentClass</key>
             <string>SPTextDocument</string>

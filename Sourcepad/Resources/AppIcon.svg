@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Sourcepad app icon.
+     Canvas: 1024x1024.
+     Artwork: 824x824 centered (100 px padding all around — Apple's modern
+     macOS icon grid). Corner radius 185 ≈ proportional squircle.
+     The Dock's icon mask expects this padding; using less makes macOS draw a
+     white "app card" tile behind the icon. -->
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -6,10 +12,10 @@
       <stop offset="100%" stop-color="#4338ca"/>
     </linearGradient>
   </defs>
-  <rect x="32" y="32" width="960" height="960" rx="224" ry="224" fill="url(#bg)"/>
-  <g stroke="white" stroke-width="56" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <polyline points="380,360 240,512 380,664"/>
-    <polyline points="644,360 784,512 644,664"/>
-    <line x1="468" y1="700" x2="556" y2="324" stroke-width="48"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#bg)"/>
+  <g stroke="white" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <polyline points="399,382 279,512 399,642"/>
+    <polyline points="625,382 745,512 625,642"/>
+    <line x1="474" y1="673" x2="550" y2="351" stroke-width="41"/>
   </g>
 </svg>

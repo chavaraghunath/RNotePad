@@ -34,14 +34,17 @@ public enum EditorContentFactory {
                 return content
             }
         }
-        // Filetype defaults: .pdf → PDFPreviewContent. Images route to
-        // the Scintilla path with the document's binary flag set, which
-        // EditorViewController.viewDidLoad notices and auto-opens the
-        // side preview pane.
+        // Filetype defaults: .pdf → PDFPreviewContent. Raster images
+        // (png/jpg/gif/bmp/webp/heic/tiff/ico) → ImagePreviewContent so
+        // the image fills the editor pane instead of opening an empty
+        // Scintilla buffer with the picture jammed into the side preview.
         if let url = document.fileURL {
             let lower = url.pathExtension.lowercased()
             if lower == "pdf" {
                 return PDFPreviewContent(fileURL: url)
+            }
+            if PreviewRenderer.isBinaryImage(filename: url.lastPathComponent) {
+                return ImagePreviewContent(fileURL: url)
             }
         }
         return EditorPaneViewController(document: document)

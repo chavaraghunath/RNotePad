@@ -16,14 +16,22 @@ public enum LexerRegistry {
         "ada": "ada",   // ada
         "adb": "ada",   // ada
         "ads": "ada",   // ada
+        "adoc": "markdown",   // AsciiDoc — closest Lexilla lexer
+        "agda": "haskell",   // Agda
+        "ahk": "cpp",   // AutoHotkey
+        "applescript": nil,   // AppleScript
         "as": "cpp",   // actionscript
+        "asc": nil,   // GPG / PGP armored ASCII
+        "asciidoc": "markdown",   // AsciiDoc
         "asm": "asm",   // asm
         "asp": "hypertext",   // asp
         "aspx": "hypertext",   // asp
         "astro": "hypertext",   // astro
         "au3": "au3",   // autoit
         "avs": "avs",   // avs
+        "avsc": "json",   // Avro schema (JSON)
         "avsi": "avs",   // avs
+        "awk": "cpp",   // AWK
         "bas": "freebasic",   // freebasic
         "bash": "bash",   // bash
         "bash_profile": "bash",   // bash
@@ -32,16 +40,22 @@ public enum LexerRegistry {
         "bb": "blitzbasic",   // blitzbasic
         "bc": "baan",   // baanc
         "bi": "freebasic",   // freebasic
+        "bib": "latex",   // BibTeX
+        "bibtex": "latex",   // BibTeX
         "bicep": "cpp",   // bicep
         "blade.php": "hypertext",   // blade
         "bsh": "bash",   // bash
+        "bzl": "python",   // Bazel Starlark
         "c": "cpp",   // c
+        "capnp": "cpp",   // Cap'n Proto IDL
         "cbd": "COBOL",   // cobol
         "cbl": "COBOL",   // cobol
         "cc": "cpp",   // cpp
         "cdb": "COBOL",   // cobol
         "cdc": "COBOL",   // cobol
+        "cer": nil,   // certificate (PEM-armored text)
         "cf": "props",   // props
+        "cff": "yaml",   // Citation File Format (YAML)
         "cfg": "props",   // props
         "cjs": "cpp",   // cjs
         "cl": "visualprolog",   // visualprolog
@@ -49,39 +63,53 @@ public enum LexerRegistry {
         "cljc": "lisp",   // clojure
         "cljs": "lisp",   // clojure
         "cln": "baan",   // baanc
+        "cls": "latex",   // LaTeX class
         "cmake": "cmake",   // cmake
         "cmd": "batch",   // batch
         "cob": "COBOL",   // cobol
         "coffee": "coffeescript",   // coffeescript
         "command": "bash",   // shellscript
         "commit_editmsg": nil,   // gitcommit
+        "comp": "cpp",   // GLSL compute shader
         "conf": "props",   // props
         "copy": "COBOL",   // cobol
         "cpp": "cpp",   // cpp
         "cpy": "COBOL",   // cobol
         "cr": "ruby",   // crystal
+        "creole": "markdown",   // Creole wiki markup
+        "crt": nil,   // certificate
         "cs": "cpp",   // cs
         "csd": "csound",   // csound
         "csh": "bash",   // bash
+        "cshtml": "hypertext",   // Razor
         "csproj": "xml",   // xml
+        "csr": nil,   // certificate signing request
         "css": "css",   // css
         "csv": nil,   // csv
         "csxproj": "xml",   // xml
         "cts": "cpp",   // typescript
+        "cue": "yaml",   // CUE config
         "cxx": "cpp",   // cpp
         "d": "d",   // d
         "dart": "cpp",   // dart
         "dbproj": "xml",   // xml
+        "dhall": "haskell",   // Dhall config
         "diff": "diff",   // diff
         "dockerfile": "bash",   // dockerfile
+        "dockerignore": "bash",   // docker ignore
         "dpr": "pascal",   // pascal
         "dproj": "xml",   // xml
+        "dtx": "latex",   // LaTeX docstrip
+        "earthfile": "bash",   // Earthly
         "editorconfig": "props",   // props
         "edn": "lisp",   // clojure
+        "eex": "hypertext",   // Elixir EEx template
         "ejs": "hypertext",   // ejs
         "elm": "haskell",   // elm
         "em": "escript",   // escript
+        "entitlements": "xml",   // Xcode entitlements
         "env": "bash",   // dotenv
+        "erb": "hypertext",   // Ruby ERB template
         "erl": "erlang",   // erlang
         "err": "errorlist",   // errorlist
         "ex": "cpp",   // elixir
@@ -92,21 +120,33 @@ public enum LexerRegistry {
         "f77": "f77",   // fortran77
         "f90": "fortran",   // fortran
         "f95": "fortran",   // fortran
+        "fbs": "cpp",   // FlatBuffers schema
+        "feature": nil,   // Gherkin (no Lexilla lexer)
         "fish": "bash",   // fish
         "for": "fortran",   // fortran
         "forth": "forth",   // forth
+        "frag": "cpp",   // GLSL fragment shader
         "fs": "caml",   // fsharp
         "fsi": "caml",   // fsharp
         "fsscript": "caml",   // fsharp
         "fsx": "caml",   // fsharp
+        "fx": "cpp",   // HLSL effects
+        "fxh": "cpp",   // HLSL effects header
+        "gawk": "cpp",   // GNU AWK
         "gd": "gdscript",   // gdscript
+        "gdshader": "cpp",   // Godot shader
         "gemspec": "ruby",   // ruby
+        "geojson": "json",   // GeoJSON
+        "geom": "cpp",   // GLSL geometry shader
         "gitattributes": "props",   // props
         "gitconfig": "props",   // props
         "gitignore": "bash",   // gitignore
         "gitmodules": "props",   // props
+        "gleam": "caml",   // Gleam
+        "glsl": "cpp",   // GLSL
         "gml": "xml",   // xml
         "go": "cpp",   // go
+        "gpg": nil,   // PGP binary / armored
         "gpx": "xml",   // xml
         "gql": "cpp",   // graphql
         "gradle": "cpp",   // gradle
@@ -116,11 +156,17 @@ public enum LexerRegistry {
         "gui": "gui4cli",   // gui4cli
         "gvy": "cpp",   // groovy
         "h": "cpp",   // cpp
+        "ha": "cpp",   // Hare
+        "hack": "phpscript",   // Hack
+        "haml": "hypertext",   // Haml templates
         "handlebars": "hypertext",   // handlebars
+        "har": "json",   // HTTP archive
         "hbs": "hypertext",   // handlebars
         "hcl": "props",   // hcl
+        "heex": "hypertext",   // Phoenix HEEx
         "hex": "ihex",   // ihex
         "hh": "cpp",   // cpp
+        "hlsl": "cpp",   // HLSL
         "hpp": "cpp",   // cpp
         "hrl": "erlang",   // erlang
         "hs": "haskell",   // haskell
@@ -129,48 +175,72 @@ public enum LexerRegistry {
         "html": "hypertext",   // html
         "html.hbs": "hypertext",   // html.handlebars
         "hws": "hollywood",   // hollywood
+        "hx": "cpp",   // Haxe
         "hxx": "cpp",   // cpp
         "i": "visualprolog",   // visualprolog
+        "idl": "cpp",   // Interface description
+        "idr": "haskell",   // Idris
         "inc": "pascal",   // pascal
         "inf": "props",   // ini
         "ini": "props",   // ini
         "ino": "cpp",   // cpp
+        "ins": "latex",   // LaTeX install
         "ipynb": "json",   // jupyter
         "iss": "inno",   // inno
         "itcl": "tcl",   // tcl
         "j2": "hypertext",   // jinja
         "jade": "html",   // pug
         "java": "cpp",   // java
+        "jenkinsfile": "cpp",   // Groovy
         "jinja": "hypertext",   // jinja
         "jinja2": "hypertext",   // jinja
         "jl": "julia",   // julia
+        "jq": "cpp",   // jq query language
         "js": "cpp",   // javascript.js
         "jsm": "cpp",   // javascript.js
         "json": "json",   // json
         "json5": "json",   // json5
         "jsonc": "json",   // json5
+        "jsonl": "json",   // JSON Lines
+        "jsonnet": "cpp",   // Jsonnet
         "jsp": "hypertext",   // jsp
         "jsx": "cpp",   // javascript.js
+        "jxa": "cpp",   // JavaScript for Automation
+        "kdl": "props",   // KDL config
+        "key": nil,   // private key (PEM)
         "kix": "kix",   // kix
         "kml": "xml",   // xml
+        "ksh": "bash",   // KornShell
         "kt": "cpp",   // kotlin
         "kts": "cpp",   // kotlin
+        "lagda": "haskell",   // Literate Agda
         "las": "haskell",   // haskell
+        "lean": "cpp",   // Lean theorem prover
+        "leex": "hypertext",   // Phoenix LiveView
         "less": "css",   // less
         "lex": "cpp",   // c
         "lhs": "haskell",   // haskell
+        "libsonnet": "cpp",   // Jsonnet library
+        "lidr": "haskell",   // Literate Idris
+        "liquid": "hypertext",   // Shopify Liquid
         "lisp": "lisp",   // lisp
         "litcoffee": "coffeescript",   // coffeescript
+        "log": nil,   // log file
         "lpr": "pascal",   // pascal
         "lsp": "lisp",   // lisp
         "lst": "COBOL",   // cobol
+        "ltx": "latex",   // LaTeX
         "lua": "lua",   // lua
         "m": "matlab",   // matlab
         "mak": "makefile",   // makefile
         "markdown": "markdown",   // markdown
+        "marko": "hypertext",   // Marko templates
+        "mawk": "cpp",   // mawk
         "md": "markdown",   // markdown
+        "mdc": "markdown",   // Markdown with components
         "mdown": "markdown",   // markdown
         "mdx": "markdown",   // mdx
+        "metal": "cpp",   // Metal shading language
         "mib": "asn1",   // asn1
         "mjs": "cpp",   // javascript.js
         "mk": "makefile",   // makefile
@@ -180,18 +250,25 @@ public enum LexerRegistry {
         "mm": "objc",   // objc
         "mms": "mmixal",   // mmixal
         "mod": "props",   // gomod
+        "mojo": "python",   // Mojo (Python superset)
         "mot": "srec",   // srec
         "mts": "cpp",   // typescript
         "mustache": "hypertext",   // handlebars
         "mx": "cpp",   // actionscript
         "mxml": "xml",   // xml
+        "ndjson": "json",   // NDJSON
+        "nickel": "cpp",   // Nickel config
+        "nims": "nimrod",   // Nim script
+        "nu": "bash",   // Nushell
         "nfo": nil,   // nfo
         "nim": "nimrod",   // nim
         "nix": "cpp",   // nix
         "nsh": "nsis",   // nsis
         "nsi": "nsis",   // nsis
         "nt": "batch",   // batch
+        "odin": "cpp",   // Odin
         "orc": "csound",   // csound
+        "org": "markdown",   // Emacs Org-mode (closest)
         "osx": "oscript",   // oscript
         "out": "spice",   // spice
         "p": "pascal",   // pascal
@@ -200,6 +277,10 @@ public enum LexerRegistry {
         "pas": "pascal",   // pascal
         "patch": "diff",   // diff
         "pb": "purebasic",   // purebasic
+        "pcss": "css",   // PostCSS
+        "pem": nil,   // PEM-encoded keys/certs
+        "pgp": nil,   // PGP key/message
+        "pgsql": "sql",   // PostgreSQL SQL
         "ph": "visualprolog",   // visualprolog
         "php": "phpscript",   // php
         "php3": "phpscript",   // php
@@ -213,8 +294,11 @@ public enum LexerRegistry {
         "plx": "perl",   // perl
         "pm": "perl",   // perl
         "pm6": "raku",   // raku
+        "po": "props",   // gettext PO (closest)
         "pod6": "raku",   // raku
         "podspec": "ruby",   // ruby
+        "pony": "cpp",   // Pony
+        "pot": "props",   // gettext template
         "pp": "pascal",   // pascal
         "pro": "visualprolog",   // visualprolog
         "profile": "bash",   // bash
@@ -224,13 +308,18 @@ public enum LexerRegistry {
         "ps1": "powershell",   // powershell
         "psd1": "powershell",   // powershell
         "psm1": "powershell",   // powershell
+        "psql": "sql",   // PostgreSQL SQL
+        "psv": nil,   // pipe-separated values
+        "pub": nil,   // SSH public key
         "pug": "html",   // pug
+        "purs": "haskell",   // PureScript
         "pxd": "python",   // python
         "pxi": "python",   // python
         "py": "python",   // python
         "pyi": "python",   // python
         "pyw": "python",   // python
         "pyx": "python",   // python
+        "qmd": "markdown",   // Quarto
         "r": "r",   // r
         "r2": "rebol",   // rebol
         "r3": "rebol",   // rebol
@@ -239,16 +328,28 @@ public enum LexerRegistry {
         "rakudoc": "raku",   // raku
         "rakumod": "raku",   // raku
         "rakutest": "raku",   // raku
+        "razor": "hypertext",   // Razor
         "rb": "ruby",   // ruby
         "rbw": "ruby",   // ruby
         "rc": "cpp",   // rc
+        "re": "caml",   // ReasonML
         "reb": "rebol",   // rebol
         "reg": "registry",   // registry
+        "rei": "caml",   // ReasonML signature
+        "res": "caml",   // ReScript
+        "resi": "caml",   // ReScript signature
+        "rhtml": "hypertext",   // ERB
+        "rmarkdown": "markdown",   // R Markdown
+        "rmd": "markdown",   // R Markdown
+        "roc": "caml",   // Roc
+        "ron": "cpp",   // Rusty Object Notation
         "rs": "rust",   // rust
+        "rst": "markdown",   // reStructuredText (closest)
         "ru": "ruby",   // ruby
         "s": "r",   // r
         "sas": "sas",   // sas
         "sass": "css",   // sass
+        "sbt": "cpp",   // SBT (Scala build)
         "sc": "cpp",   // scala
         "scala": "cpp",   // scala
         "scm": "lisp",   // scheme
@@ -259,6 +360,7 @@ public enum LexerRegistry {
         "shtm": "hypertext",   // html
         "shtml": "hypertext",   // html
         "sitemap": "xml",   // xml
+        "slim": "hypertext",   // Slim templates
         "slnx": "xml",   // xml
         "smd": "lisp",   // scheme
         "sml": "caml",   // caml
@@ -271,6 +373,11 @@ public enum LexerRegistry {
         "ss": "lisp",   // scheme
         "ssh_config": "props",   // ssh_config
         "st": "smalltalk",   // smalltalk
+        "storyboard": "xml",   // Interface Builder storyboard
+        "stan": "cpp",   // Stan (Bayesian)
+        "starlark": "python",   // Starlark
+        "strings": "props",   // Apple .strings localization
+        "stringsdict": "xml",   // Apple .stringsdict
         "sty": "latex",   // latex
         "styl": "css",   // stylus
         "stylus": "css",   // stylus
@@ -287,20 +394,30 @@ public enum LexerRegistry {
         "tab": "nncrontab",   // nncrontab
         "targets": "xml",   // xml
         "tcl": "tcl",   // tcl
+        "tcsh": "bash",   // tcsh
         "tek": "tehex",   // tehex
+        "tesc": "cpp",   // GLSL tessellation control
+        "tese": "cpp",   // GLSL tessellation eval
         "tex": "latex",   // latex
+        "textile": "markdown",   // Textile (closest)
         "tf": "props",   // terraform
         "tfvars": "props",   // terraform
         "thor": "ruby",   // ruby
+        "thrift": "cpp",   // Apache Thrift
         "thy": "caml",   // caml
+        "tiltfile": "python",   // Tilt (Starlark)
         "toml": "toml",   // toml
+        "topojson": "json",   // TopoJSON
         "tpl": "hypertext",   // smarty
+        "tres": "props",   // Godot resource
         "ts": "cpp",   // typescript
+        "tscn": "props",   // Godot scene
         "tsql": "mssql",   // mssql
         "tsv": nil,   // tsv
         "tsx": "cpp",   // typescript
         "twig": "hypertext",   // twig
         "txt": nil,   // normal
+        "typ": "markdown",   // Typst (closest)
         "url": "props",   // ini
         "v": "verilog",   // verilog
         "vb": "vb",   // vb
@@ -309,26 +426,34 @@ public enum LexerRegistry {
         "vbs": "vb",   // vb
         "vcproj": "xml",   // xml
         "vcxproj": "xml",   // xml
+        "vert": "cpp",   // GLSL vertex shader
         "vh": "verilog",   // verilog
         "vhd": "vhdl",   // vhdl
         "vhdl": "vhdl",   // vhdl
         "vim": "cpp",   // vimscript
-        "vue": "cpp",   // javascript.js
+        "vue": "hypertext",   // Vue SFC (HTML + CSS + JS)
         "wasm": "cpp",   // wasm
         "wast": "cpp",   // wat
         "wat": "cpp",   // wat
+        "webmanifest": "json",   // Web app manifest
         "wer": "props",   // ini
+        "wgsl": "cpp",   // WebGPU shading
         "wixproj": "xml",   // xml
+        "wl": "cpp",   // Wolfram
+        "wls": "cpp",   // Wolfram script
         "wsdl": "xml",   // xml
         "wxs": "xml",   // xml
         "xaml": "xml",   // xml
         "xbl": "xml",   // xml
+        "xcconfig": "props",   // Xcode build config
         "xht": "hypertext",   // html
         "xhtml": "hypertext",   // html
+        "xib": "xml",   // Interface Builder
         "xlf": "xml",   // xml
         "xliff": "xml",   // xml
         "xml": "xml",   // xml
         "xsd": "xml",   // xml
+        "xsh": "python",   // Xonsh
         "xsl": "xml",   // xml
         "xslt": "xml",   // xml
         "xsml": "xml",   // xml
@@ -346,28 +471,51 @@ public enum LexerRegistry {
         ".bash_logout": "bash",
         ".bash_profile": "bash",
         ".bashrc": "bash",
+        ".browserslistrc": "props",
+        ".commitlintrc": "json",
+        ".dockerignore": "bash",
         ".editorconfig": "props",
         ".env": "bash",
         ".env.development": "bash",
         ".env.local": "bash",
         ".env.production": "bash",
         ".env.test": "bash",
+        ".envrc": "bash",
+        ".eslintignore": "bash",
         ".eslintrc": "json",
         ".gitattributes": "bash",
         ".gitconfig": "props",
         ".gitignore": "bash",
         ".gitkeep": "bash",
         ".gitmodules": "props",
+        ".huskyrc": "json",
         ".inputrc": "bash",
+        ".lintstagedrc": "json",
+        ".mocharc.json": "json",
+        ".mocharc.yml": "yaml",
+        ".node-version": "bash",
+        ".npmignore": "bash",
         ".npmrc": "props",
+        ".nvmrc": "bash",
+        ".prettierignore": "bash",
         ".prettierrc": "json",
         ".profile": "bash",
+        ".python-version": "bash",
+        ".releaserc": "json",
+        ".ruby-version": "bash",
+        ".stylelintrc": "json",
+        ".swcrc": "json",
+        ".tool-versions": "bash",
+        ".tsbuildinfo": "json",
+        ".vscodeignore": "bash",
         ".yarnrc": "props",
+        ".yarnrc.yml": "yaml",
         ".zlogin": "bash",
         ".zprofile": "bash",
         ".zshrc": "bash",
         "Appfile": "ruby",
         "BUILD": "python",
+        "BUILD.bazel": "python",
         "Berksfile": "ruby",
         "Brewfile": "ruby",
         "CMakeLists.txt": "cmake",
@@ -375,22 +523,37 @@ public enum LexerRegistry {
         "Cargo.lock": "toml",
         "Containerfile": "bash",
         "Dockerfile": "bash",
+        "Earthfile": "bash",
         "Fastfile": "ruby",
         "GNUmakefile": "makefile",
         "Gemfile": "ruby",
         "Gemfile.lock": "ruby",
         "Guardfile": "ruby",
+        "Jenkinsfile": "cpp",
         "MODULE.bazel": "python",
         "Makefile": "makefile",
+        "Pipfile": "toml",
+        "Pipfile.lock": "json",
         "Podfile": "ruby",
         "Podfile.lock": "ruby",
+        "Procfile": "bash",
         "Rakefile": "ruby",
         "Thorfile": "ruby",
+        "Tiltfile": "python",
         "Vagrantfile": "ruby",
         "WORKSPACE": "python",
+        "WORKSPACE.bazel": "python",
+        "composer.lock": "json",
+        "deno.lock": "json",
         "go.mod": "props",
         "go.sum": "props",
+        "justfile": "makefile",
         "makefile": "makefile",
+        "meson.build": "python",
+        "package-lock.json": "json",
+        "poetry.lock": "toml",
+        "pnpm-lock.yaml": "yaml",
+        "yarn.lock": "yaml",
     ]
 
     /// Resolve a file URL or filename to a Lexilla lexer name.

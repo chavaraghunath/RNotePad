@@ -19,7 +19,8 @@ final class NameAlert: NSAlert {
 
 public final class SidebarViewController: NSViewController,
                                           NSOutlineViewDataSource,
-                                          NSOutlineViewDelegate {
+                                          NSOutlineViewDelegate,
+                                          NSMenuDelegate {
 
     /// Convenience: the first root (or nil). Kept for the small number of
     /// callers that only care about a single folder (Open Folder dialog
@@ -404,6 +405,7 @@ public final class SidebarViewController: NSViewController,
     private func makeContextMenu() -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = true
+        menu.delegate = self
         for (title, sel) in [
             ("New File",      #selector(menuNewFile(_:))),
             ("New Folder",    #selector(menuNewFolder(_:))),
@@ -411,12 +413,14 @@ public final class SidebarViewController: NSViewController,
             ("Move to Trash", #selector(menuMoveToTrash(_:))),
             ("Reveal in Finder", #selector(menuReveal(_:))),
             ("Copy Path",     #selector(menuCopyPath(_:))),
+            ("Show Hidden Files", #selector(menuToggleHidden(_:))),
             ("Remove from Workspace", #selector(menuRemoveRoot(_:))),
         ] {
             let item = NSMenuItem(title: title, action: sel, keyEquivalent: "")
             item.target = self
             menu.addItem(item)
-            if title == "New Folder" || title == "Move to Trash" || title == "Copy Path" {
+            if title == "New Folder" || title == "Move to Trash"
+                || title == "Copy Path" || title == "Show Hidden Files" {
                 menu.addItem(.separator())
             }
         }
@@ -503,6 +507,17 @@ public final class SidebarViewController: NSViewController,
         removeRoot(url)
     }
 
+    @objc private func menuToggleHidden(_ sender: Any?) {
+        Preferences.shared.showHiddenFilesInSidebar.toggle()
+        refreshTapped(nil)
+    }
+
+    public func menuNeedsUpdate(_ menu: NSMenu) {
+        for item in menu.items where item.action == #selector(menuToggleHidden(_:)) {
+            item.state = Preferences.shared.showHiddenFilesInSidebar ? .on : .off
+        }
+    }
+
     private func refreshAfterMutation(parent: URL) {
         childrenCache.removeValue(forKey: parent)
         DispatchQueue.main.async { [weak self] in
@@ -528,10 +543,12 @@ public final class SidebarViewController: NSViewController,
 
     private func children(of url: URL) -> [URL] {
         if let cached = childrenCache[url] { return cached }
+        let opts: FileManager.DirectoryEnumerationOptions =
+            Preferences.shared.showHiddenFilesInSidebar ? [] : [.skipsHiddenFiles]
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: [.isDirectoryKey, .isHiddenKey],
-            options: [.skipsHiddenFiles]
+            options: opts
         ) else {
             childrenCache[url] = []
             return []

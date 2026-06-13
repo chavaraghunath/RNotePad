@@ -124,6 +124,11 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: "Sourcepad.gitGutter"); notify() }
     }
 
+    public var showHiddenFilesInSidebar: Bool {
+        get { defaults.bool(forKey: "Sourcepad.showHiddenFilesInSidebar") }
+        set { defaults.set(newValue, forKey: "Sourcepad.showHiddenFilesInSidebar"); notify() }
+    }
+
     // MARK: - Workspace (Phase 2)
 
     /// Stable id of the active workspace. nil = pick whichever exists first
