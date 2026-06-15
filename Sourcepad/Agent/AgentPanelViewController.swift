@@ -25,6 +25,131 @@ final class FlippedStackView: NSStackView {
     override var isFlipped: Bool { true }
 }
 
+/// A transcript row shown after an Auto-mode turn that edited files on disk:
+/// a summary plus "Review diff" (opens the unified diff) and "Revert" (restores
+/// the workspace to the pre-turn checkpoint).
+final class AgentChangesCard: NSView {
+    private let diff: String
+    private let revert: () -> Bool
+    private let card = NSView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let reviewButton = NSButton()
+    private let revertButton = NSButton()
+
+    init(diff: String, revert: @escaping () -> Bool) {
+        self.diff = diff
+        self.revert = revert
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        build()
+        applyColors()
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    private func build() {
+        card.wantsLayer = true
+        card.layer?.cornerRadius = 7
+        card.layer?.borderWidth = 1
+        card.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(card)
+
+        let n = diff.components(separatedBy: "diff --git ").count - 1
+        titleLabel.stringValue = "✎ \(n == 1 ? "1 file" : "\(max(n, 1)) files") changed this turn"
+        titleLabel.font = .systemFont(ofSize: 11, weight: .medium)
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        configure(reviewButton, title: "Review diff", action: #selector(review))
+        configure(revertButton, title: "Revert", action: #selector(doRevert))
+
+        let buttons = NSStackView(views: [reviewButton, revertButton])
+        buttons.orientation = .horizontal
+        buttons.spacing = 6
+        buttons.translatesAutoresizingMaskIntoConstraints = false
+
+        let v = NSStackView(views: [titleLabel, buttons])
+        v.orientation = .vertical
+        v.alignment = .leading
+        v.spacing = 6
+        v.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(v)
+
+        NSLayoutConstraint.activate([
+            card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
+            card.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            card.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
+            v.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10),
+            v.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -10),
+            v.topAnchor.constraint(equalTo: card.topAnchor, constant: 8),
+            v.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -8),
+        ])
+    }
+
+    private func configure(_ b: NSButton, title: String, action: Selector) {
+        b.title = title
+        b.bezelStyle = .rounded
+        b.controlSize = .small
+        b.font = .systemFont(ofSize: 11)
+        b.target = self
+        b.action = action
+        b.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    @objc private func review() {
+        let alert = NSAlert()
+        alert.messageText = "Changes this turn"
+        let tv = NSTextView()
+        tv.isEditable = false
+        tv.drawsBackground = true
+        tv.backgroundColor = .textBackgroundColor
+        tv.textStorage?.setAttributedString(Self.colorizedDiff(diff))
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 560, height: 420))
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        scroll.documentView = tv
+        alert.accessoryView = scroll
+        alert.addButton(withTitle: "Done")
+        if let w = window { alert.beginSheetModal(for: w) { _ in } } else { alert.runModal() }
+    }
+
+    @objc private func doRevert() {
+        let ok = revert()
+        if ok {
+            titleLabel.stringValue = "↩︎ Reverted changes from this turn"
+            reviewButton.isEnabled = false
+            revertButton.isEnabled = false
+        } else {
+            NSSound.beep()
+        }
+    }
+
+    private func applyColors() {
+        card.layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.07).cgColor
+        card.layer?.borderColor = NSColor.separatorColor.cgColor
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyColors()
+    }
+
+    /// Colorize a unified diff: green additions, red deletions, secondary hunks.
+    static func colorizedDiff(_ diff: String) -> NSAttributedString {
+        let mono = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        let out = NSMutableAttributedString()
+        for line in diff.components(separatedBy: "\n") {
+            let color: NSColor
+            if line.hasPrefix("+") && !line.hasPrefix("+++") { color = .systemGreen }
+            else if line.hasPrefix("-") && !line.hasPrefix("---") { color = .systemRed }
+            else if line.hasPrefix("@@") || line.hasPrefix("diff ") { color = .secondaryLabelColor }
+            else { color = .labelColor }
+            out.append(NSAttributedString(string: line + "\n",
+                                          attributes: [.font: mono, .foregroundColor: color]))
+        }
+        return out
+    }
+}
+
 /// The panel's root view, filled with the window background colour so the panel
 /// has an explicit, appearance-following backdrop (its child scroll view and
 /// header are transparent and would otherwise show through to nothing). Redraws
@@ -52,6 +177,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private let newButton = NSButton()
     private let historyButton = NSButton()
     private let statusLabel = NSTextField(labelWithString: "")
+    private let costButton = NSButton()
     private var historyPopover: NSPopover?
 
     // Transcript
@@ -138,6 +264,20 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(statusLabel)
 
+        // Live token/cost readout; click to set or clear a per-conversation budget.
+        costButton.translatesAutoresizingMaskIntoConstraints = false
+        costButton.isBordered = false
+        costButton.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        costButton.contentTintColor = .secondaryLabelColor
+        costButton.alignment = .right
+        costButton.title = ""
+        costButton.target = self
+        costButton.action = #selector(showBudgetMenu)
+        costButton.toolTip = "Token usage / cost — click to set a budget"
+        costButton.setContentHuggingPriority(.required, for: .horizontal)
+        costButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        header.addSubview(costButton)
+
         let divider = NSBox(); divider.boxType = .separator
         divider.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(divider)
@@ -154,8 +294,11 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             historyButton.widthAnchor.constraint(equalToConstant: 26),
 
             statusLabel.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 10),
-            statusLabel.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -10),
             statusLabel.topAnchor.constraint(equalTo: row.bottomAnchor, constant: 3),
+
+            costButton.leadingAnchor.constraint(greaterThanOrEqualTo: statusLabel.trailingAnchor, constant: 6),
+            costButton.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -10),
+            costButton.centerYAnchor.constraint(equalTo: statusLabel.centerYAnchor),
 
             divider.leadingAnchor.constraint(equalTo: header.leadingAnchor),
             divider.trailingAnchor.constraint(equalTo: header.trailingAnchor),
@@ -381,6 +524,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             default:          appendBubble(role: .system, text: m.content)
             }
         }
+        updateCostReadout()
         focusInput()
     }
 
@@ -391,6 +535,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         toolCards.removeAll()
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         refreshStatus()
+        updateCostReadout()
         focusInput()
     }
 
@@ -399,6 +544,10 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         guard !text.isEmpty else { return }
         guard ensureConversation() else {
             appendBubble(role: .system, text: "No agent CLI is available. Install claude, codex, or opencode.")
+            return
+        }
+        if controller?.isOverBudget == true {
+            appendBubble(role: .system, text: "Budget reached. Raise or clear the budget (click the cost readout) to continue.")
             return
         }
         input.string = ""
@@ -424,6 +573,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         c?.delegate = self
         controller = c
         refreshStatus()
+        updateCostReadout()
         return c != nil
     }
 
@@ -517,9 +667,20 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         scrollToBottom()
     }
 
+    public func conversation(_ c: AgentConversationController, didUpdateUsageInputTokens input: Int, outputTokens: Int, costUSD: Double) {
+        updateCostReadout()
+        updateBudgetGate()
+    }
+
+    public func conversation(_ c: AgentConversationController, didChangeFilesWithDiff diff: String, revert: @escaping () -> Bool) {
+        addArrangedRow(AgentChangesCard(diff: diff, revert: revert))
+    }
+
     public func conversation(_ c: AgentConversationController, turnDidFinish error: String?) {
         sendButton.isEnabled = true
         refreshStatus()
+        updateCostReadout()
+        updateBudgetGate()
         if let error {
             if let b = streamingBubble, b.text.isEmpty {
                 b.setText("⚠︎ \(error)")
@@ -531,5 +692,60 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         }
         streamingBubble = nil
         scrollToBottom()
+    }
+
+    // MARK: - Cost & budget
+
+    private func updateCostReadout() {
+        guard let c = controller else { costButton.title = ""; return }
+        var s = "↑\(Self.fmtTokens(c.totalInputTokens)) ↓\(Self.fmtTokens(c.totalOutputTokens))"
+        if c.totalCostUSD > 0 { s += String(format: " · $%.4f", c.totalCostUSD) }
+        if let b = c.budgetUSD, b > 0 { s += String(format: " / $%.2f", b) }
+        costButton.title = s
+        costButton.contentTintColor = c.isOverBudget ? .systemRed : .secondaryLabelColor
+    }
+
+    private func updateBudgetGate() {
+        guard let c = controller, c.isOverBudget else { return }
+        sendButton.isEnabled = false
+        statusLabel.stringValue = "Budget reached — click the cost to raise it"
+    }
+
+    private static func fmtTokens(_ n: Int) -> String {
+        n >= 1000 ? String(format: "%.1fk", Double(n) / 1000) : "\(n)"
+    }
+
+    @objc private func showBudgetMenu() {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Set budget…", action: #selector(setBudgetPrompt), keyEquivalent: "")
+        if controller?.budgetUSD != nil {
+            menu.addItem(withTitle: "Clear budget", action: #selector(clearBudget), keyEquivalent: "")
+        }
+        menu.items.forEach { $0.target = self }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: costButton.bounds.height + 2), in: costButton)
+    }
+
+    @objc private func setBudgetPrompt() {
+        guard let controller else { return }
+        let alert = NSAlert()
+        alert.messageText = "Conversation budget"
+        alert.informativeText = "Pause sending once this conversation's cost reaches this amount (USD)."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 140, height: 22))
+        field.stringValue = controller.budgetUSD.map { String(format: "%.2f", $0) } ?? ""
+        field.placeholderString = "e.g. 1.00"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Set")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            controller.budgetUSD = Double(field.stringValue.trimmingCharacters(in: .whitespaces))
+            sendButton.isEnabled = !controller.isOverBudget
+            updateCostReadout(); refreshStatus(); updateBudgetGate()
+        }
+    }
+
+    @objc private func clearBudget() {
+        controller?.budgetUSD = nil
+        sendButton.isEnabled = (controller != nil)
+        updateCostReadout(); refreshStatus()
     }
 }

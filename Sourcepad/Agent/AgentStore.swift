@@ -86,7 +86,10 @@ public final class AgentStore {
             updated_at    REAL NOT NULL,
             current_cli   TEXT,
             current_model TEXT,
-            cwd           TEXT
+            cwd           TEXT,
+            total_input_tokens  INTEGER NOT NULL DEFAULT 0,
+            total_output_tokens INTEGER NOT NULL DEFAULT 0,
+            total_cost_usd      REAL NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS conversation_session (
             conversation_id   INTEGER NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
@@ -120,6 +123,34 @@ public final class AgentStore {
         );
         """
         if !exec(ddl) { NSLog("[Sourcepad] agent.db schema creation failed") }
+        migrate()
+    }
+
+    /// Add columns introduced after a DB was first created, bringing older
+    /// agent.db files up to date. We check existing columns first so no spurious
+    /// "duplicate column" errors are logged on every launch.
+    private func migrate() {
+        let existing = columnNames(of: "conversation")
+        let additions = [
+            ("total_input_tokens", "INTEGER NOT NULL DEFAULT 0"),
+            ("total_output_tokens", "INTEGER NOT NULL DEFAULT 0"),
+            ("total_cost_usd", "REAL NOT NULL DEFAULT 0"),
+        ]
+        for (name, decl) in additions where !existing.contains(name) {
+            _ = exec("ALTER TABLE conversation ADD COLUMN \(name) \(decl)")
+        }
+    }
+
+    private func columnNames(of table: String) -> Set<String> {
+        queue.sync {
+            guard let stmt = prepare("PRAGMA table_info(\(table))") else { return [] }
+            defer { sqlite3_finalize(stmt) }
+            var cols = Set<String>()
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let name = textColumn(stmt, 1) { cols.insert(name) }   // column 1 = name
+            }
+            return cols
+        }
     }
 
     // MARK: - Conversations
@@ -161,6 +192,37 @@ public final class AgentStore {
 
     public func deleteConversation(_ id: Int64) {
         run("DELETE FROM conversation WHERE id = ?") { stmt in sqlite3_bind_int64(stmt, 1, id) }
+    }
+
+    /// Accumulate token/cost usage onto a conversation's running totals.
+    public func addUsage(conversation id: Int64, input: Int, output: Int, cost: Double) {
+        run("""
+            UPDATE conversation SET
+              total_input_tokens  = total_input_tokens  + ?,
+              total_output_tokens = total_output_tokens + ?,
+              total_cost_usd      = total_cost_usd      + ?
+            WHERE id = ?
+            """) { stmt in
+            sqlite3_bind_int64(stmt, 1, Int64(input))
+            sqlite3_bind_int64(stmt, 2, Int64(output))
+            sqlite3_bind_double(stmt, 3, cost)
+            sqlite3_bind_int64(stmt, 4, id)
+        }
+    }
+
+    public func usage(conversation id: Int64) -> (input: Int, output: Int, cost: Double)? {
+        queue.sync {
+            guard let stmt = prepare("""
+                SELECT total_input_tokens, total_output_tokens, total_cost_usd
+                  FROM conversation WHERE id = ?
+                """) else { return nil }
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_int64(stmt, 1, id)
+            guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+            return (Int(sqlite3_column_int64(stmt, 0)),
+                    Int(sqlite3_column_int64(stmt, 1)),
+                    sqlite3_column_double(stmt, 2))
+        }
     }
 
     /// Most-recently-updated conversations first.

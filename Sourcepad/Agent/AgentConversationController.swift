@@ -27,6 +27,11 @@ public protocol AgentConversationDelegate: AnyObject {
     func conversation(_ c: AgentConversationController, didReceiveToolResult id: String, ok: Bool, output: String?)
     /// The agent wants permission for a privileged action (Phase 3).
     func conversation(_ c: AgentConversationController, didRequest permission: AgentPermissionRequest)
+    /// Token/cost totals changed (running sum for the conversation).
+    func conversation(_ c: AgentConversationController, didUpdateUsageInputTokens input: Int, outputTokens: Int, costUSD: Double)
+    /// An (Auto-mode) turn changed files on disk. `diff` is a unified diff;
+    /// calling `revert` restores the workspace to the pre-turn checkpoint.
+    func conversation(_ c: AgentConversationController, didChangeFilesWithDiff diff: String, revert: @escaping () -> Bool)
     /// The turn ended; `error` is nil on success.
     func conversation(_ c: AgentConversationController, turnDidFinish error: String?)
 }
@@ -39,6 +44,8 @@ public extension AgentConversationDelegate {
     func conversation(_ c: AgentConversationController, didReceive toolCall: AgentToolCall) {}
     func conversation(_ c: AgentConversationController, didReceiveToolResult id: String, ok: Bool, output: String?) {}
     func conversation(_ c: AgentConversationController, didRequest permission: AgentPermissionRequest) {}
+    func conversation(_ c: AgentConversationController, didUpdateUsageInputTokens input: Int, outputTokens: Int, costUSD: Double) {}
+    func conversation(_ c: AgentConversationController, didChangeFilesWithDiff diff: String, revert: @escaping () -> Bool) {}
     func conversation(_ c: AgentConversationController, turnDidFinish error: String?) {}
 }
 
@@ -53,11 +60,29 @@ public final class AgentConversationController {
     public weak var delegate: AgentConversationDelegate?
     public private(set) var isStreaming = false
 
+    /// Running token/cost totals for this conversation (loaded from the store on
+    /// open, accumulated live as `.usage` events arrive).
+    public private(set) var totalInputTokens = 0
+    public private(set) var totalOutputTokens = 0
+    public private(set) var totalCostUSD = 0.0
+
+    /// Optional per-conversation budget in USD. When exceeded, `isOverBudget`
+    /// becomes true and the panel gates further sends until raised.
+    public var budgetUSD: Double?
+    public var isOverBudget: Bool {
+        guard let budgetUSD, budgetUSD > 0 else { return false }
+        return totalCostUSD >= budgetUSD
+    }
+
     private let store: AgentStore?
     private let registry: AgentRegistry
     private var activeHandle: AgentTurnHandle?
     private var pendingText = ""
     private var titleSet = false
+    // Checkpoint taken before an Auto-mode turn, so its file changes can be
+    // reviewed/reverted once it finishes.
+    private var turnCheckpointManager: AgentCheckpointManager?
+    private var turnCheckpoint: AgentCheckpointManager.Checkpoint?
 
     public init(conversationID: Int64, cliID: String, model: AgentModel?,
                 workingDirectory: String,
@@ -69,6 +94,11 @@ public final class AgentConversationController {
         self.workingDirectory = workingDirectory
         self.store = store
         self.registry = registry
+        if let u = store?.usage(conversation: conversationID) {
+            totalInputTokens = u.input
+            totalOutputTokens = u.output
+            totalCostUSD = u.cost
+        }
     }
 
     /// Start a brand-new conversation backed by a fresh store row.
@@ -139,6 +169,19 @@ public final class AgentConversationController {
                                    workingDirectory: workingDirectory,
                                    nativeSessionID: native, reseedTranscript: reseed,
                                    permission: permission)
+        // Snapshot the workspace before an Auto-mode turn so its on-disk edits
+        // can be reviewed and reverted. Plan/read-only turns make no edits, so
+        // no checkpoint is needed.
+        turnCheckpoint = nil
+        turnCheckpointManager = nil
+        if permission == .auto {
+            let mgr = AgentCheckpointManager(workingDirectory: workingDirectory)
+            if mgr.isUsable {
+                turnCheckpointManager = mgr
+                turnCheckpoint = mgr.snapshot(label: Self.makeTitle(prompt))
+            }
+        }
+
         isStreaming = true
         pendingText = ""
         activeHandle = cli.startTurn(req) { [weak self] ev in self?.handle(ev) }
@@ -166,8 +209,14 @@ public final class AgentConversationController {
             delegate?.conversation(self, didReceiveToolResult: id, ok: ok, output: output)
         case .permissionRequest(let pr):
             delegate?.conversation(self, didRequest: pr)
-        case .usage:
-            break
+        case .usage(let u):
+            totalInputTokens += u.inputTokens
+            totalOutputTokens += u.outputTokens
+            totalCostUSD += (u.costUSD ?? 0)
+            store?.addUsage(conversation: conversationID,
+                            input: u.inputTokens, output: u.outputTokens, cost: u.costUSD ?? 0)
+            delegate?.conversation(self, didUpdateUsageInputTokens: totalInputTokens,
+                                   outputTokens: totalOutputTokens, costUSD: totalCostUSD)
         case .turnFinished:
             finishTurn(error: nil)
         case .error(let msg):
@@ -188,6 +237,18 @@ public final class AgentConversationController {
         isStreaming = false
         activeHandle = nil
         if error == nil { updateEmbedding() }
+
+        // Surface on-disk changes the turn made (Auto mode) for review/revert.
+        if let cp = turnCheckpoint, let mgr = turnCheckpointManager {
+            let diff = mgr.diff(since: cp)
+            if !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                delegate?.conversation(self, didChangeFilesWithDiff: diff,
+                                       revert: { mgr.restore(to: cp) })
+            }
+        }
+        turnCheckpoint = nil
+        turnCheckpointManager = nil
+
         delegate?.conversationDidUpdate(self)
         delegate?.conversation(self, turnDidFinish: error)
     }
