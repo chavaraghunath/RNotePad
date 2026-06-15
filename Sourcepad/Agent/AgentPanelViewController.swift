@@ -25,6 +25,102 @@ final class FlippedStackView: NSStackView {
     override var isFlipped: Bool { true }
 }
 
+/// A compact, single-line row of "context chips" shown above the input,
+/// previewing what editor context (active file, selection, `@`-mentions) will
+/// ride along with the next turn. Collapses to nothing when empty.
+final class AgentContextBar: NSView {
+    struct Chip {
+        let symbol: String
+        let text: String
+        let tooltip: String
+    }
+
+    private let stack = NSStackView()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        translatesAutoresizingMaskIntoConstraints = false
+        stack.orientation = .horizontal
+        stack.spacing = 5
+        stack.alignment = .centerY
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    func setChips(_ chips: [Chip]) {
+        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let color = resolvedPillColor()
+        for chip in chips { stack.addArrangedSubview(pill(chip, color: color)) }
+    }
+
+    private func pill(_ chip: Chip, color: CGColor) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 4
+        container.layer?.backgroundColor = color
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.toolTip = chip.tooltip
+
+        let label = NSTextField(labelWithString: chip.text)
+        label.font = .systemFont(ofSize: 10)
+        label.textColor = .secondaryLabelColor
+        label.lineBreakMode = .byTruncatingMiddle
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let row: NSStackView
+        if let img = NSImage(systemSymbolName: chip.symbol, accessibilityDescription: nil) {
+            let iv = NSImageView(image: img)
+            iv.contentTintColor = .secondaryLabelColor
+            iv.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 9, weight: .regular)
+            iv.translatesAutoresizingMaskIntoConstraints = false
+            iv.setContentHuggingPriority(.required, for: .horizontal)
+            row = NSStackView(views: [iv, label])
+        } else {
+            row = NSStackView(views: [label])
+        }
+        row.orientation = .horizontal
+        row.spacing = 3
+        row.alignment = .centerY
+        row.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(row)
+
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 6),
+            row.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -6),
+            row.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
+            row.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2),
+            container.widthAnchor.constraint(lessThanOrEqualToConstant: 160),
+        ])
+        return container
+    }
+
+    /// Resolve the (dynamic) pill background under THIS view's effective
+    /// appearance, so dark/light is honoured even when set off the main draw
+    /// cycle (the same baked-`.cgColor` pitfall the panel hit elsewhere).
+    private func resolvedPillColor() -> CGColor {
+        var cg = NSColor.secondaryLabelColor.withAlphaComponent(0.12).cgColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            cg = NSColor.secondaryLabelColor.withAlphaComponent(0.12).cgColor
+        }
+        return cg
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        let color = resolvedPillColor()
+        for pill in stack.arrangedSubviews {
+            pill.layer?.backgroundColor = color
+        }
+    }
+}
+
 /// A transcript row shown after an Auto-mode turn that edited files on disk:
 /// a summary plus "Review diff" (opens the unified diff) and "Revert" (restores
 /// the workspace to the pre-turn checkpoint).
@@ -190,6 +286,11 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private let inputScroll = NSScrollView()
     private let sendButton = NSButton()
 
+    // Live editor-context preview (active file / selection / @-mentions).
+    private let contextBar = AgentContextBar()
+    private var contextBarHeight: NSLayoutConstraint!
+    private var contextBarTopGap: NSLayoutConstraint!
+
     private let registry = AgentRegistry.shared
     private var controller: AgentConversationController?
     private var streamingBubble: AgentMessageBubble?
@@ -216,6 +317,14 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         registry.warmUp { [weak self] in self?.rebuildCLIPopup() }
         refreshStatus()
         updateEmptyState()
+        refreshContextBar()
+    }
+
+    public override func viewDidAppear() {
+        super.viewDidAppear()
+        // The active document / selection may have changed while the panel was
+        // hidden; refresh the preview when it becomes visible.
+        refreshContextBar()
     }
 
     // MARK: - UI construction
@@ -338,6 +447,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         input.onHeightChange = { [weak self] h in
             self?.inputHeight.animator().constant = min(150, max(34, h))
         }
+        input.onTextChange = { [weak self] in self?.refreshContextBar() }
         input.font = .systemFont(ofSize: 13)
         input.isRichText = false
         input.isEditable = true
@@ -377,6 +487,15 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         divider.translatesAutoresizingMaskIntoConstraints = false
         bar.addSubview(divider)
 
+        // Context bar sits between the divider and the input field. It collapses
+        // to zero height when there is nothing to preview.
+        contextBar.isHidden = true
+        bar.addSubview(contextBar)
+        contextBarHeight = contextBar.heightAnchor.constraint(equalToConstant: 0)
+        contextBarTopGap = contextBar.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 0)
+        contextBarHeight.isActive = true
+        contextBarTopGap.isActive = true
+
         NSLayoutConstraint.activate([
             bar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
@@ -386,8 +505,11 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             divider.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
             divider.topAnchor.constraint(equalTo: bar.topAnchor),
 
+            contextBar.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 10),
+            contextBar.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -10),
+
             inputScroll.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 8),
-            inputScroll.topAnchor.constraint(equalTo: bar.topAnchor, constant: 8),
+            inputScroll.topAnchor.constraint(equalTo: contextBar.bottomAnchor, constant: 8),
             inputScroll.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -8),
 
             sendButton.leadingAnchor.constraint(equalTo: inputScroll.trailingAnchor, constant: 6),
@@ -550,6 +672,9 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             appendBubble(role: .system, text: "Budget reached. Raise or clear the budget (click the cost readout) to continue.")
             return
         }
+        // Capture editor context BEFORE clearing the input (the typed text still
+        // holds any `@`-mentions to resolve).
+        let editorContext = currentEditorContext()
         input.string = ""
         inputHeight.constant = 34
         appendBubble(role: .user, text: text)
@@ -558,7 +683,8 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         streamingBubble = nil
         statusLabel.stringValue = "Thinking…"
         sendButton.isEnabled = false
-        controller?.send(text)
+        controller?.send(text, editorContext: editorContext)
+        refreshContextBar()
     }
 
     // MARK: - Conversation lifecycle
@@ -579,11 +705,91 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
 
     public func focusInput() {
         view.window?.makeFirstResponder(input)
+        refreshContextBar()
     }
 
     /// Cancel any in-flight turn. Called when the window closes.
     public func shutdown() {
         controller?.cancel()
+    }
+
+    // MARK: - Editor context
+
+    /// Snapshot the editor the user is looking at: active file path + language,
+    /// current selection, diagnostics, and open file paths. Sampled fresh at
+    /// send time so what reaches the agent always reflects the live editor.
+    private func currentEditorContext() -> AgentContextProvider.EditorContextSnapshot {
+        let dc = NSDocumentController.shared
+        let active = dc.currentDocument as? TextDocument
+        let editor = active?.primaryEditorViewController()
+        let pane = editor?.editorPane
+        let openPaths = dc.documents.compactMap { ($0 as? TextDocument)?.fileURL?.path }
+        // Agent-facing language is derived from the file extension, NOT the
+        // editor's syntax lexer (which buckets many languages under "cpp").
+        let language: String?
+        if let activePath = active?.fileURL?.path {
+            language = AgentContextProvider.languageHint(forPath: activePath)
+        } else {
+            language = nil
+        }
+        return AgentContextProvider.EditorContextSnapshot(
+            activeFilePath: active?.fileURL?.path,
+            activeFileLanguage: language,
+            selection: pane?.selectedContextText,
+            diagnostics: pane?.contextDiagnostics ?? [],
+            openFilePaths: openPaths)
+    }
+
+    /// Rebuild the live context preview from the current editor + input text.
+    /// This is a best-effort preview; the authoritative context is sampled
+    /// fresh in `submit()`, so a slightly stale bar never sends stale context.
+    private func refreshContextBar() {
+        let ctx = currentEditorContext()
+        var chips: [AgentContextBar.Chip] = []
+
+        if let path = ctx.activeFilePath {
+            let name = (path as NSString).lastPathComponent
+            chips.append(.init(symbol: "doc.text", text: name, tooltip: "Active file: \(path)"))
+        }
+        if let sel = ctx.selection, !sel.isEmpty {
+            let lines = sel.components(separatedBy: "\n").count
+            chips.append(.init(symbol: "text.viewfinder",
+                               text: "\(lines) line\(lines == 1 ? "" : "s")",
+                               tooltip: "The highlighted selection will be included"))
+        }
+        if !ctx.diagnostics.isEmpty {
+            let n = ctx.diagnostics.count
+            chips.append(.init(symbol: "exclamationmark.triangle",
+                               text: "\(n) issue\(n == 1 ? "" : "s")",
+                               tooltip: ctx.diagnostics.prefix(8).joined(separator: "\n")))
+        }
+        let mentions = resolvedMentionNames()
+        for name in mentions.prefix(4) {
+            chips.append(.init(symbol: "at", text: name, tooltip: "Attached via @-mention"))
+        }
+        if mentions.count > 4 {
+            chips.append(.init(symbol: "ellipsis",
+                               text: "+\(mentions.count - 4)",
+                               tooltip: "More @-mentioned files attached"))
+        }
+
+        let hasChips = !chips.isEmpty
+        contextBar.setChips(chips)
+        contextBar.isHidden = !hasChips
+        contextBarHeight.constant = hasChips ? 22 : 0
+        contextBarTopGap.constant = hasChips ? 6 : 0
+    }
+
+    /// File names of `@`-mentions in the current input that resolve to real
+    /// files (mirrors exactly what `composeAgentPrompt` will attach).
+    private func resolvedMentionNames() -> [String] {
+        let text = input.string
+        guard text.contains("@") else { return [] }
+        let cwd = controller?.workingDirectory
+            ?? workingDirectoryProvider?()
+            ?? FileManager.default.homeDirectoryForCurrentUser.path
+        let result = AgentContextProvider.resolveMentions(in: text, workspaceRoot: cwd, maxBytesPerFile: 1)
+        return result.attachments.map { ($0.path as NSString).lastPathComponent }
     }
 
 

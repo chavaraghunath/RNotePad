@@ -430,6 +430,37 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
         SciGoToLine(sciView, line1Based)
     }
 
+    // MARK: - Agent-context accessors
+
+    /// The currently selected text, or nil when the selection is empty. Fed to
+    /// the agent panel so a question can be scoped to the highlighted snippet.
+    public var selectedContextText: String? {
+        let sel = SciGetSelectionBytes(sciView)
+        guard sel.location != NSNotFound, sel.length > 0 else { return nil }
+        let bytes = Array(SciGetText(sciView).utf8)
+        let start = Int(sel.location)
+        let end = start + Int(sel.length)
+        guard start >= 0, end <= bytes.count, start < end else { return nil }
+        return String(decoding: bytes[start..<end], as: UTF8.self)
+    }
+
+    /// Current LSP diagnostics for this buffer, formatted one-per-line for agent
+    /// context (e.g. "Line 12: [error] expected ';'"). Empty when there is no
+    /// active LSP session. Capped so a flood of diagnostics can't bloat a turn.
+    public var contextDiagnostics: [String] {
+        guard let diags = lspSession?.diagnostics.currentDiagnostics, !diags.isEmpty else { return [] }
+        return diags.prefix(50).map { d in
+            let sev: String
+            switch d.severity {
+            case .error:       sev = "error"
+            case .warning:     sev = "warning"
+            case .information: sev = "info"
+            case .hint:        sev = "hint"
+            }
+            return "Line \(d.range.start.line + 1): [\(sev)] \(d.message)"
+        }
+    }
+
     /// Replace the full buffer (used by EOL conversion in the status bar).
     /// Preserves caret position by clamping to new length.
     public func replaceWholeBuffer(with text: String) {

@@ -12,6 +12,9 @@ public final class AgentInputTextView: NSTextView {
     /// Fires with the content height (text + insets) whenever it changes, so the
     /// host can grow the enclosing scroll view to fit, up to a cap.
     public var onHeightChange: ((CGFloat) -> Void)?
+    /// Fires whenever the text changes, so the host can refresh a live preview
+    /// (e.g. the agent panel's `@`-mention context bar).
+    public var onTextChange: (() -> Void)?
 
     public override func keyDown(with event: NSEvent) {
         // keyCode 36 = Return / Enter.
@@ -32,5 +35,6 @@ public final class AgentInputTextView: NSTextView {
     public override func didChangeText() {
         super.didChangeText()
         onHeightChange?(contentHeight)
+        onTextChange?()
     }
 }

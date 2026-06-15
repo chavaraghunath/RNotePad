@@ -149,6 +149,15 @@ public final class AgentConversationController {
 
     @discardableResult
     public func send(_ text: String) -> Bool {
+        return send(text, editorContext: nil)
+    }
+
+    /// Send a turn, optionally augmented with editor context. The user's typed
+    /// text is persisted verbatim (with `@`-mentions intact for display); the
+    /// agent receives an augmented prompt where mentions are expanded to file
+    /// bodies and a lightweight editor-context block is prepended.
+    @discardableResult
+    public func send(_ text: String, editorContext: AgentContextProvider.EditorContextSnapshot?) -> Bool {
         let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty, !isStreaming, let cli = registry.cli(withID: cliID) else { return false }
 
@@ -160,12 +169,18 @@ public final class AgentConversationController {
         }
         delegate?.conversationDidUpdate(self)
 
+        // The agent-facing prompt: `@`-mentions expanded to file bodies + a
+        // lightweight editor-context block prepended. Falls back to the raw
+        // prompt when there is nothing to add.
+        let agentPrompt = AgentContextProvider.composeAgentPrompt(
+            typed: prompt, workspaceRoot: workingDirectory, context: editorContext)
+
         // Native resume if we have a session for THIS cli; otherwise re-seed the
         // prior transcript so a freshly-switched CLI keeps continuity.
         let native = store?.nativeSession(conversation: conversationID, cli: cliID)
         let reseed = (native == nil) ? buildReseedTranscript() : nil
 
-        let req = AgentTurnRequest(prompt: prompt, model: model?.id,
+        let req = AgentTurnRequest(prompt: agentPrompt, model: model?.id,
                                    workingDirectory: workingDirectory,
                                    nativeSessionID: native, reseedTranscript: reseed,
                                    permission: permission)

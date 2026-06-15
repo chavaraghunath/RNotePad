@@ -35,6 +35,39 @@ public enum AgentContextProvider {
         }
     }
 
+    /// A point-in-time capture of the editor the user is looking at, fed
+    /// alongside a turn so the agent knows the active file, what's highlighted,
+    /// any diagnostics, and what else is open. Carries names/selection only —
+    /// never whole file bodies (those come from explicit `@`-mentions), keeping
+    /// per-turn token cost predictable. Foundation-only; the AppKit panel fills
+    /// it in from the live editor.
+    public struct EditorContextSnapshot {
+        public let activeFilePath: String?
+        public let activeFileLanguage: String?
+        public let selection: String?
+        public let diagnostics: [String]
+        public let openFilePaths: [String]
+
+        public init(activeFilePath: String? = nil,
+                    activeFileLanguage: String? = nil,
+                    selection: String? = nil,
+                    diagnostics: [String] = [],
+                    openFilePaths: [String] = []) {
+            self.activeFilePath = activeFilePath
+            self.activeFileLanguage = activeFileLanguage
+            self.selection = selection
+            self.diagnostics = diagnostics
+            self.openFilePaths = openFilePaths
+        }
+
+        /// True when the snapshot carries nothing worth prepending to a turn.
+        public var isEmpty: Bool {
+            let noActive = (activeFilePath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            let noSel = (selection?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            return noActive && noSel && diagnostics.isEmpty && openFilePaths.isEmpty
+        }
+    }
+
     // MARK: - Caps
 
     /// Upper bound on the formatted context block, so a giant active file or a
@@ -204,6 +237,81 @@ public enum AgentContextProvider {
         return parts.joined(separator: "\n\n")
     }
 
+    // MARK: - Ambient context (lightweight, no bodies)
+
+    /// Build a *lightweight* ambient context block: the active file's **name** +
+    /// language, the current selection, diagnostics, and open file **names**.
+    /// Unlike `formatContext`, this never inlines whole file bodies — full
+    /// contents are pulled in deliberately via `@`-mentions, so each turn's
+    /// token cost stays predictable. Any nil/empty input is omitted; the
+    /// selection is truncated if huge; the whole block is capped.
+    public static func formatAmbientContext(activeFilePath: String?,
+                                            activeFileLanguage: String?,
+                                            selection: String?,
+                                            diagnostics: [String],
+                                            openFilePaths: [String]) -> String {
+        var sections: [String] = []
+
+        if let path = nonEmpty(activeFilePath) {
+            let name = (path as NSString).lastPathComponent
+            if let lang = nonEmpty(activeFileLanguage) {
+                sections.append("## Active file: \(name) (\(lang.lowercased()))")
+            } else {
+                sections.append("## Active file: \(name)")
+            }
+        }
+
+        if let sel = nonEmpty(selection) {
+            let (text, truncated) = truncate(sel, to: maxInlineSectionBytes)
+            var body = "## Selection:\n```\n\(text)\n```"
+            if truncated { body += "\n_(truncated)_" }
+            sections.append(body)
+        }
+
+        let diags = diagnostics.compactMap { nonEmpty($0) }
+        if !diags.isEmpty {
+            let lines = diags.map { "- \($0)" }.joined(separator: "\n")
+            sections.append("## Diagnostics:\n\(lines)")
+        }
+
+        let opens = openFilePaths.compactMap { nonEmpty($0) }
+        if !opens.isEmpty {
+            let lines = opens
+                .map { "- \(($0 as NSString).lastPathComponent)" }
+                .joined(separator: "\n")
+            sections.append("## Open files:\n\(lines)")
+        }
+
+        let block = sections.joined(separator: "\n\n")
+        let (capped, _) = truncate(block, to: maxContextBlockBytes)
+        return capped
+    }
+
+    /// Full agent-prompt pipeline: resolve `@path` mentions in `typed` into
+    /// attached file bodies, prepend a lightweight ambient context block built
+    /// from `context`, and append the cleaned user text. Returns `typed`
+    /// unchanged when composition would be empty. Pure/Foundation-only so the
+    /// whole flow is headless-testable.
+    public static func composeAgentPrompt(typed: String,
+                                          workspaceRoot: String,
+                                          context: EditorContextSnapshot?) -> String {
+        let mention = resolveMentions(in: typed,
+                                      workspaceRoot: workspaceRoot,
+                                      maxBytesPerFile: maxContextBlockBytes)
+        var contextBlock = ""
+        if let ctx = context, !ctx.isEmpty {
+            contextBlock = formatAmbientContext(activeFilePath: ctx.activeFilePath,
+                                                activeFileLanguage: ctx.activeFileLanguage,
+                                                selection: ctx.selection,
+                                                diagnostics: ctx.diagnostics,
+                                                openFilePaths: ctx.openFilePaths)
+        }
+        let composed = compose(prompt: mention.cleanedPrompt,
+                               contextBlock: contextBlock,
+                               attachments: mention.attachments)
+        return composed.isEmpty ? typed : composed
+    }
+
     // MARK: - Path helpers
 
     /// Resolve a mention candidate to an absolute path string if a regular file
@@ -307,14 +415,20 @@ public enum AgentContextProvider {
         return (result, true)
     }
 
-    /// Best-effort fenced-code language hint from an explicit language or the
-    /// file extension.
-    private static func fenceLanguage(_ explicit: String?, path: String) -> String {
-        if let lang = nonEmpty(explicit) {
-            return lang.lowercased()
-        }
-        let ext = (path as NSString).pathExtension.lowercased()
-        switch ext {
+    /// Public, agent-facing language name for a file, derived from its
+    /// extension (e.g. `Foo.swift` → "swift"). Prefer this over an editor's
+    /// syntax-lexer id, which is a highlighting bucket — many languages share
+    /// the C++ lexer, so the lexer would mislabel Swift/C#/Dart as "cpp".
+    /// Returns nil when the extension maps to no known language.
+    public static func languageHint(forPath path: String) -> String? {
+        knownLanguage(forExtension: (path as NSString).pathExtension)
+    }
+
+    /// Map a file extension to a known language name, or nil if unrecognised.
+    /// The single source of truth for both the agent-facing language hint and
+    /// fenced-code language tags.
+    private static func knownLanguage(forExtension extension: String) -> String? {
+        switch `extension`.lowercased() {
         case "swift":               return "swift"
         case "m", "mm", "h":        return "objc"
         case "c":                   return "c"
@@ -337,7 +451,17 @@ public enum AgentContextProvider {
         case "css":                 return "css"
         case "sql":                 return "sql"
         case "xml":                 return "xml"
-        default:                    return ext
+        default:                    return nil
         }
+    }
+
+    /// Best-effort fenced-code language hint from an explicit language or the
+    /// file extension. Falls back to the raw extension so code still fences.
+    private static func fenceLanguage(_ explicit: String?, path: String) -> String {
+        if let lang = nonEmpty(explicit) {
+            return lang.lowercased()
+        }
+        let ext = (path as NSString).pathExtension.lowercased()
+        return knownLanguage(forExtension: ext) ?? ext
     }
 }
