@@ -24,6 +24,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Phase 35: discover + load user JS plugins.
         PluginHost.shared.loadAll()
 
+        // Agent panel: probe installed agent CLIs + their models in the
+        // background so the panel's pickers are warm by the time it's opened.
+        // Never blocks launch.
+        AgentRegistry.shared.warmUp()
+
         NSApp.mainMenu = MainMenu.build()
         NSApp.activate(ignoringOtherApps: true)
 

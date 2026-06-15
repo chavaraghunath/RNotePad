@@ -510,6 +510,14 @@ public enum MainMenu {
         terminalNew.keyEquivalentModifierMask = [.control, .shift]
         viewMenu.addItem(terminalNew)
 
+        // Right-side agent conversation panel. ⌃⌘A toggles. nil-target selector
+        // routes through the responder chain to RootContentViewController.
+        let agentToggle = NSMenuItem(title: "Toggle Agent",
+                                     action: Selector(("sourcepadToggleAgent:")),
+                                     keyEquivalent: "a")
+        agentToggle.keyEquivalentModifierMask = [.control, .command]
+        viewMenu.addItem(agentToggle)
+
         viewMenu.addItem(.separator())
 
         // View → LSP Status (Phase 7) — dynamic menu rebuilt on open.

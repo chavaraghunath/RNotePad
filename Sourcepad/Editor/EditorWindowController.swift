@@ -52,6 +52,8 @@ public final class EditorWindowController: NSWindowController,
     public func windowWillClose(_ notification: Notification) {
         // Kill any shells this window spawned so they don't outlive it.
         rootContentViewController?.terminalPanel.terminateAll()
+        // Cancel any in-flight agent turn.
+        rootContentViewController?.agentPanel.shutdown()
     }
 
     // MARK: - Auto-pair monitor
@@ -93,6 +95,7 @@ public final class EditorWindowController: NSWindowController,
     private static let searchItemId  = NSToolbarItem.Identifier("SourcepadSearch")
     private static let previewItemId = NSToolbarItem.Identifier("SourcepadPreviewToggle")
     private static let terminalItemId = NSToolbarItem.Identifier("SourcepadTerminalToggle")
+    private static let agentItemId    = NSToolbarItem.Identifier("SourcepadAgentToggle")
 
     private func installToolbar(on window: NSWindow) {
         let toolbar = NSToolbar(identifier: "SourcepadMain")
@@ -108,12 +111,12 @@ public final class EditorWindowController: NSWindowController,
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Self.sidebarItemId, .space, Self.navItemId, Self.searchItemId, .flexibleSpace,
-         Self.terminalItemId, Self.previewItemId]
+         Self.terminalItemId, Self.agentItemId, Self.previewItemId]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.sidebarItemId, Self.navItemId, Self.searchItemId, Self.terminalItemId, Self.previewItemId,
-         .flexibleSpace, .space]
+        [Self.sidebarItemId, Self.navItemId, Self.searchItemId, Self.terminalItemId,
+         Self.agentItemId, Self.previewItemId, .flexibleSpace, .space]
     }
 
     public func toolbar(_ toolbar: NSToolbar,
@@ -124,6 +127,7 @@ public final class EditorWindowController: NSWindowController,
         case Self.navItemId:      return makeNavItem(id: itemIdentifier)
         case Self.searchItemId:   return makeSearchItem(id: itemIdentifier)
         case Self.terminalItemId: return makeTerminalItem(id: itemIdentifier)
+        case Self.agentItemId:    return makeAgentItem(id: itemIdentifier)
         case Self.previewItemId:  return makePreviewItem(id: itemIdentifier)
         default: return nil
         }
@@ -223,6 +227,23 @@ public final class EditorWindowController: NSWindowController,
         return item
     }
 
+    private func makeAgentItem(id: NSToolbarItem.Identifier) -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: id)
+        item.label = "Agent"
+        item.paletteLabel = "Agent"
+        item.toolTip = "Show/Hide Agent (⌃⌘A)"
+        if #available(macOS 11.0, *) {
+            item.image = NSImage(systemSymbolName: "sparkles",
+                                 accessibilityDescription: "Toggle Agent")
+        } else {
+            item.image = NSImage(named: NSImage.touchBarTextBoxTemplateName)
+        }
+        item.target = self
+        item.action = #selector(toggleAgentFromToolbar(_:))
+        item.isBordered = true
+        return item
+    }
+
     private func makePreviewItem(id: NSToolbarItem.Identifier) -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: id)
         item.label = "Preview"
@@ -253,6 +274,11 @@ public final class EditorWindowController: NSWindowController,
 
     @objc private func toggleTerminalFromToolbar(_ sender: Any?) {
         rootContentViewController?.toggleTerminal()
+    }
+
+    @objc private func toggleAgentFromToolbar(_ sender: Any?) {
+        rootContentViewController?.toggleAgent()
+        window?.toolbar?.validateVisibleItems()
     }
 
     @objc private func searchSubmitted(_ sender: NSSearchField) {
@@ -322,6 +348,7 @@ extension EditorWindowController: NSToolbarItemValidation {
         case Self.previewItemId: return editorViewController.canShowPreview
         case Self.sidebarItemId: return true
         case Self.terminalItemId: return true
+        case Self.agentItemId: return true
         default: return true
         }
     }

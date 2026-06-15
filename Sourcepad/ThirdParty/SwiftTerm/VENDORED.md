@@ -15,6 +15,10 @@ Vendored: 2026-06-14
 1. MetalTerminalRenderer.swift: `Bundle.module` -> `Bundle(for: MetalTerminalRenderer.self)`
    The flat swiftc build has no SwiftPM resource bundle. This line only runs
    if the Metal renderer is activated, which Sourcepad never does.
+2. MetalTerminalRenderer.swift (2 sites): prefix `vertices.withUnsafeBytes { … }`
+   with `_ =`. The closure's trailing `memcpy` returns a value, so the call's
+   result is non-Void and discarded — warning-only, no behavior change. Keeps
+   the app build warning-free.
 
 ## Build integration
 - All .swift files added to SWIFT_SRCS in Sourcepad/Build/build.sh.
