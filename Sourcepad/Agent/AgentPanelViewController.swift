@@ -35,7 +35,9 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private let modelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let permPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let newButton = NSButton()
+    private let historyButton = NSButton()
     private let statusLabel = NSTextField(labelWithString: "")
+    private var historyPopover: NSPopover?
 
     // Transcript
     private let scrollView = NSScrollView()
@@ -100,7 +102,15 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         newButton.target = self
         newButton.action = #selector(newConversation)
 
-        let row = NSStackView(views: [cliPopup, modelPopup, permPopup, NSView(), newButton])
+        historyButton.translatesAutoresizingMaskIntoConstraints = false
+        historyButton.bezelStyle = .texturedRounded
+        historyButton.image = NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "History")
+        historyButton.imagePosition = .imageOnly
+        historyButton.toolTip = "Conversation history"
+        historyButton.target = self
+        historyButton.action = #selector(showHistory)
+
+        let row = NSStackView(views: [cliPopup, modelPopup, permPopup, NSView(), historyButton, newButton])
         row.orientation = .horizontal
         row.spacing = 6
         row.alignment = .centerY
@@ -126,6 +136,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             row.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -8),
             row.topAnchor.constraint(equalTo: header.topAnchor, constant: 6),
             newButton.widthAnchor.constraint(equalToConstant: 26),
+            historyButton.widthAnchor.constraint(equalToConstant: 26),
 
             statusLabel.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 10),
             statusLabel.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -10),
@@ -304,6 +315,58 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     @objc private func permChanged() {
         controller?.permission = permissionMode
         refreshStatus()
+    }
+
+    @objc private func showHistory() {
+        let vc = AgentHistoryPopover()
+        vc.onSelect = { [weak self] id in
+            self?.historyPopover?.close()
+            self?.loadConversation(id)
+        }
+        let pop = NSPopover()
+        pop.contentViewController = vc
+        pop.behavior = .transient
+        pop.contentSize = NSSize(width: 340, height: 380)
+        pop.show(relativeTo: historyButton.bounds, of: historyButton, preferredEdge: .minY)
+        historyPopover = pop
+    }
+
+    /// Replace the live transcript with a persisted conversation and rebind the
+    /// controller so the next turn natively resumes that conversation's session.
+    private func loadConversation(_ id: Int64) {
+        guard let store = AgentStore.shared, let row = store.conversation(id: id) else { return }
+        controller?.cancel()
+        streamingBubble = nil
+        toolCards.removeAll()
+        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        let c = AgentConversationController.open(row)
+        c.delegate = self
+        c.permission = permissionMode
+        controller = c
+
+        // Sync pickers to the reopened conversation's CLI / model.
+        if let cli = row.currentCLI,
+           let idx = (0..<cliPopup.numberOfItems).first(where: { (cliPopup.item(at: $0)?.representedObject as? String) == cli }) {
+            cliPopup.selectItem(at: idx)
+            selectedCLIID = cli
+            rebuildModelPopup()
+            if let m = row.currentModel,
+               let midx = (0..<modelPopup.numberOfItems).first(where: { ((modelPopup.item(at: $0)?.representedObject as? AgentModel)?.id) == m }) {
+                modelPopup.selectItem(at: midx)
+            }
+        }
+        refreshStatus()
+
+        // Render the persisted messages.
+        for m in store.messages(conversation: id) {
+            switch m.role {
+            case "user":      appendBubble(role: .user, text: m.content)
+            case "assistant": appendBubble(role: .assistant, text: m.content)
+            default:          appendBubble(role: .system, text: m.content)
+            }
+        }
+        focusInput()
     }
 
     @objc private func newConversation() {

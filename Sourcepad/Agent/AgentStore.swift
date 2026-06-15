@@ -187,6 +187,26 @@ public final class AgentStore {
         }
     }
 
+    public func conversation(id: Int64) -> ConversationRow? {
+        queue.sync {
+            guard let stmt = prepare("""
+                SELECT id, title, created_at, updated_at, current_cli, current_model, cwd
+                  FROM conversation WHERE id = ?
+                """) else { return nil }
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_int64(stmt, 1, id)
+            guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+            return ConversationRow(
+                id: sqlite3_column_int64(stmt, 0),
+                title: textColumn(stmt, 1) ?? "",
+                createdAt: sqlite3_column_double(stmt, 2),
+                updatedAt: sqlite3_column_double(stmt, 3),
+                currentCLI: textColumn(stmt, 4),
+                currentModel: textColumn(stmt, 5),
+                cwd: textColumn(stmt, 6))
+        }
+    }
+
     // MARK: - Per-CLI native session ids (for native resume)
 
     public func setNativeSession(conversation id: Int64, cli: String, sessionID: String) {

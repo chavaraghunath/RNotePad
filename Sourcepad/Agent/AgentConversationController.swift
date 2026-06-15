@@ -57,6 +57,7 @@ public final class AgentConversationController {
     private let registry: AgentRegistry
     private var activeHandle: AgentTurnHandle?
     private var pendingText = ""
+    private var titleSet = false
 
     public init(conversationID: Int64, cliID: String, model: AgentModel?,
                 workingDirectory: String,
@@ -88,6 +89,19 @@ public final class AgentConversationController {
                                            store: store, registry: registry)
     }
 
+    /// Reopen an existing persisted conversation (from history).
+    public static func open(_ row: AgentStore.ConversationRow,
+                            store: AgentStore? = AgentStore.shared,
+                            registry: AgentRegistry = .shared) -> AgentConversationController {
+        let cliID = row.currentCLI ?? registry.availableCLIs().first?.id ?? "claude"
+        let model = registry.models(for: cliID).first { $0.id == row.currentModel }
+        let cwd = row.cwd ?? FileManager.default.homeDirectoryForCurrentUser.path
+        let c = AgentConversationController(conversationID: row.id, cliID: cliID, model: model,
+                                            workingDirectory: cwd, store: store, registry: registry)
+        c.titleSet = true
+        return c
+    }
+
     // MARK: - Switching CLI / model
 
     public func switchCLI(_ newCLIID: String, model newModel: AgentModel?) {
@@ -109,6 +123,11 @@ public final class AgentConversationController {
         guard !prompt.isEmpty, !isStreaming, let cli = registry.cli(withID: cliID) else { return false }
 
         store?.appendMessage(conversation: conversationID, role: "user", content: prompt, kind: "text")
+        // Title the conversation from its first user message.
+        if !titleSet {
+            store?.renameConversation(conversationID, title: Self.makeTitle(prompt))
+            titleSet = true
+        }
         delegate?.conversationDidUpdate(self)
 
         // Native resume if we have a session for THIS cli; otherwise re-seed the
@@ -168,8 +187,24 @@ public final class AgentConversationController {
         }
         isStreaming = false
         activeHandle = nil
+        if error == nil { updateEmbedding() }
         delegate?.conversationDidUpdate(self)
         delegate?.conversation(self, turnDidFinish: error)
+    }
+
+    /// Re-embed the whole conversation for semantic recall (cheap, offline).
+    private func updateEmbedding() {
+        guard let rows = store?.messages(conversation: conversationID), !rows.isEmpty else { return }
+        let text = rows.filter { $0.kind != "error" }.map { $0.content }.joined(separator: "\n")
+        store?.setEmbedding(conversation: conversationID,
+                            vector: AgentEmbedder.embed(text),
+                            model: "fnv-ngram-v1")
+    }
+
+    private static func makeTitle(_ prompt: String) -> String {
+        let firstLine = prompt.split(separator: "\n").first.map(String.init) ?? prompt
+        let trimmed = firstLine.trimmingCharacters(in: .whitespaces)
+        return trimmed.count > 48 ? String(trimmed.prefix(48)) + "…" : trimmed
     }
 
     // MARK: - Re-seed transcript (cross-CLI continuity)
