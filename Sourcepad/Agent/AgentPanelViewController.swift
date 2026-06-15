@@ -50,6 +50,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private let registry = AgentRegistry.shared
     private var controller: AgentConversationController?
     private var streamingBubble: AgentMessageBubble?
+    private var toolCards: [String: AgentToolCard] = [:]
     private var selectedCLIID: String?
     private var emptyLabel: NSTextField?
 
@@ -309,6 +310,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         controller?.cancel()
         controller = nil
         streamingBubble = nil
+        toolCards.removeAll()
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         refreshStatus()
         focusInput()
@@ -322,10 +324,11 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             return
         }
         input.string = ""
-        input.invalidateIntrinsicContentSize()
+        inputHeight.constant = 34
         appendBubble(role: .user, text: text)
-        // Start a fresh assistant bubble to stream into.
-        streamingBubble = appendBubble(role: .assistant, text: "")
+        // Assistant bubbles are created lazily on the first text delta so a
+        // tool-only turn doesn't leave an empty bubble.
+        streamingBubble = nil
         statusLabel.stringValue = "Thinking…"
         sendButton.isEnabled = false
         controller?.send(text)
@@ -359,11 +362,15 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     @discardableResult
     private func appendBubble(role: AgentMessageBubble.Role, text: String) -> AgentMessageBubble {
         let bubble = AgentMessageBubble(role: role, text: text)
-        stack.addArrangedSubview(bubble)
-        bubble.leadingAnchor.constraint(equalTo: stack.leadingAnchor).isActive = true
-        bubble.trailingAnchor.constraint(equalTo: stack.trailingAnchor).isActive = true
-        scrollToBottom()
+        addArrangedRow(bubble)
         return bubble
+    }
+
+    private func addArrangedRow(_ row: NSView) {
+        stack.addArrangedSubview(row)
+        row.leadingAnchor.constraint(equalTo: stack.leadingAnchor).isActive = true
+        row.trailingAnchor.constraint(equalTo: stack.trailingAnchor).isActive = true
+        scrollToBottom()
     }
 
     private func scrollToBottom() {
@@ -409,6 +416,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     // MARK: - AgentConversationDelegate
 
     public func conversation(_ c: AgentConversationController, didStreamText delta: String) {
+        if streamingBubble == nil { streamingBubble = appendBubble(role: .assistant, text: "") }
         streamingBubble?.appendDelta(delta)
         scrollToBottom()
     }
@@ -418,10 +426,17 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     }
 
     public func conversation(_ c: AgentConversationController, didReceive toolCall: AgentToolCall) {
-        // Phase 3 renders rich tool cards; for now show a compact inline note.
-        appendBubble(role: .system, text: "› \(toolCall.title)")
-        // Keep streaming the assistant reply into a new bubble after a tool note.
-        streamingBubble = appendBubble(role: .assistant, text: "")
+        // End the current assistant bubble; the next text delta starts a new one
+        // after the tool card, matching the agent's interleaved output.
+        streamingBubble = nil
+        let card = AgentToolCard(toolCall: toolCall)
+        toolCards[toolCall.id] = card
+        addArrangedRow(card)
+    }
+
+    public func conversation(_ c: AgentConversationController, didReceiveToolResult id: String, ok: Bool, output: String?) {
+        toolCards[id]?.setStatus(ok ? .ok : .failed, output: output)
+        scrollToBottom()
     }
 
     public func conversation(_ c: AgentConversationController, turnDidFinish error: String?) {

@@ -23,6 +23,8 @@ public protocol AgentConversationDelegate: AnyObject {
     func conversation(_ c: AgentConversationController, didStreamThinking delta: String)
     /// The agent invoked a tool.
     func conversation(_ c: AgentConversationController, didReceive toolCall: AgentToolCall)
+    /// Result of a tool the agent ran (matches a prior toolCall by id).
+    func conversation(_ c: AgentConversationController, didReceiveToolResult id: String, ok: Bool, output: String?)
     /// The agent wants permission for a privileged action (Phase 3).
     func conversation(_ c: AgentConversationController, didRequest permission: AgentPermissionRequest)
     /// The turn ended; `error` is nil on success.
@@ -35,6 +37,7 @@ public extension AgentConversationDelegate {
     func conversation(_ c: AgentConversationController, didStreamText delta: String) {}
     func conversation(_ c: AgentConversationController, didStreamThinking delta: String) {}
     func conversation(_ c: AgentConversationController, didReceive toolCall: AgentToolCall) {}
+    func conversation(_ c: AgentConversationController, didReceiveToolResult id: String, ok: Bool, output: String?) {}
     func conversation(_ c: AgentConversationController, didRequest permission: AgentPermissionRequest) {}
     func conversation(_ c: AgentConversationController, turnDidFinish error: String?) {}
 }
@@ -140,8 +143,8 @@ public final class AgentConversationController {
             delegate?.conversation(self, didStreamThinking: t)
         case .toolCall(let tc):
             delegate?.conversation(self, didReceive: tc)
-        case .toolResult:
-            break
+        case .toolResult(let id, let ok, let output):
+            delegate?.conversation(self, didReceiveToolResult: id, ok: ok, output: output)
         case .permissionRequest(let pr):
             delegate?.conversation(self, didRequest: pr)
         case .usage:

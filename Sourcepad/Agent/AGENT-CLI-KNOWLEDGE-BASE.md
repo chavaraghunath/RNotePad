@@ -221,13 +221,29 @@ Verified follow-up: even `claude -p --input-format stream-json --output-format s
 nothing for approval, and one-shot exec already gives streaming + resume + usage. Switching
 CLI/model between turns is then trivially a new process.
 
-**Approval mechanism (Phase 3):** the supported headless path is claude's
-`--permission-prompt-tool mcp__<srv>__<tool>` — claude calls a local MCP tool we host and
-*blocks on its allow/deny reply*, which lets the UI gate each tool **mid-turn even though
-the main process is one-shot**. codex gates via `--sandbox` (+ `app-server` for per-action);
-opencode via `acp`/permission config. Adapters that can't do mid-turn approval fall back to
-coarse **pre-turn authorization** ("allow writes this session?"). The local approval MCP
-server is the Phase-3 spike target; Phase 1/2 run turns in a chosen permission/sandbox mode.
+**Approval mechanism — Phase 3 spike result (DEFINITIVE):** the `--permission-prompt-tool`
+path does **NOT** work for headless `claude -p`. Verified by hosting a real stdio MCP
+server and registering it as the permission tool: claude completes the MCP handshake
+(`initialize` → `notifications/initialized` → `tools/list`) but **never calls the approve
+tool**, and executes the Write unconditionally. This holds with `--permission-mode default`
+AND `--strict-mcp-config` (to exclude the user's 8 global MCP servers, which otherwise
+pollute and destabilize the run). Root cause: `-p` mode reports `permissionMode:
+bypassPermissions` and bypasses per-action prompting entirely. The only headless controls
+are `--permission-mode plan` (proposes, makes NO edits) vs execute-everything. True
+mid-turn per-action approval would require the Agent-SDK bidirectional control protocol
+(`can_use_tool` after a `control_request: initialize` handshake), which is undocumented at
+the CLI layer and out of scope.
+
+**Chosen approval model (reliable, CLI-agnostic):** *Plan vs Auto*, with full tool-call
+visibility.
+- **Ask/Plan (default):** claude `--permission-mode plan` · codex `--sandbox read-only` ·
+  opencode read-only. The agent reads + reasons + **proposes** edits/commands, which the
+  panel renders as tool-call cards. Nothing touches disk → the user reviews and approves by
+  switching to Auto / "apply".
+- **Auto:** full access; the agent edits/runs; every tool call still renders as a card, and
+  on-disk edits flow through the existing `Document/ExternalChangeWatcher` reload path.
+This honors the user's "approve/deny" intent as closely as the headless tools reliably
+allow: you see exactly what the agent wants to do before letting it act.
 
 ---
 
