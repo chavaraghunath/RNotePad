@@ -188,6 +188,10 @@ SWIFT_SRCS=(
 while IFS= read -r f; do SWIFT_SRCS+=("$f"); done \
     < <(find "$APP_DIR/Terminal" -name '*.swift' 2>/dev/null | sort)
 
+# Sourcepad agent panel (CLI-driven agent conversation) — auto-include everything under Agent/.
+while IFS= read -r f; do SWIFT_SRCS+=("$f"); done \
+    < <(find "$APP_DIR/Agent" -name '*.swift' 2>/dev/null | sort)
+
 # Vendored SwiftTerm (PTY + VT100 emulator). See ThirdParty/SwiftTerm/VENDORED.md.
 # Compiled into the single app module (no `import SwiftTerm`).
 while IFS= read -r f; do SWIFT_SRCS+=("$f"); done \
