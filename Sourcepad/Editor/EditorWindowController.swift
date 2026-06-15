@@ -92,6 +92,7 @@ public final class EditorWindowController: NSWindowController,
     private static let navItemId     = NSToolbarItem.Identifier("SourcepadNavigation")
     private static let searchItemId  = NSToolbarItem.Identifier("SourcepadSearch")
     private static let previewItemId = NSToolbarItem.Identifier("SourcepadPreviewToggle")
+    private static let terminalItemId = NSToolbarItem.Identifier("SourcepadTerminalToggle")
 
     private func installToolbar(on window: NSWindow) {
         let toolbar = NSToolbar(identifier: "SourcepadMain")
@@ -106,11 +107,12 @@ public final class EditorWindowController: NSWindowController,
     }
 
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.sidebarItemId, .space, Self.navItemId, Self.searchItemId, .flexibleSpace, Self.previewItemId]
+        [Self.sidebarItemId, .space, Self.navItemId, Self.searchItemId, .flexibleSpace,
+         Self.terminalItemId, Self.previewItemId]
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.sidebarItemId, Self.navItemId, Self.searchItemId, Self.previewItemId,
+        [Self.sidebarItemId, Self.navItemId, Self.searchItemId, Self.terminalItemId, Self.previewItemId,
          .flexibleSpace, .space]
     }
 
@@ -121,6 +123,7 @@ public final class EditorWindowController: NSWindowController,
         case Self.sidebarItemId:  return makeSidebarItem(id: itemIdentifier)
         case Self.navItemId:      return makeNavItem(id: itemIdentifier)
         case Self.searchItemId:   return makeSearchItem(id: itemIdentifier)
+        case Self.terminalItemId: return makeTerminalItem(id: itemIdentifier)
         case Self.previewItemId:  return makePreviewItem(id: itemIdentifier)
         default: return nil
         }
@@ -203,6 +206,23 @@ public final class EditorWindowController: NSWindowController,
         }
     }
 
+    private func makeTerminalItem(id: NSToolbarItem.Identifier) -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: id)
+        item.label = "Terminal"
+        item.paletteLabel = "Terminal"
+        item.toolTip = "Show/Hide Terminal (⌃`)"
+        if #available(macOS 11.0, *) {
+            item.image = NSImage(systemSymbolName: "terminal",
+                                 accessibilityDescription: "Toggle Terminal")
+        } else {
+            item.image = NSImage(named: NSImage.actionTemplateName)
+        }
+        item.target = self
+        item.action = #selector(toggleTerminalFromToolbar(_:))
+        item.isBordered = true
+        return item
+    }
+
     private func makePreviewItem(id: NSToolbarItem.Identifier) -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: id)
         item.label = "Preview"
@@ -229,6 +249,10 @@ public final class EditorWindowController: NSWindowController,
     @objc private func togglePreviewFromToolbar(_ sender: Any?) {
         editorViewController.togglePreview()
         window?.toolbar?.validateVisibleItems()
+    }
+
+    @objc private func toggleTerminalFromToolbar(_ sender: Any?) {
+        rootContentViewController?.toggleTerminal()
     }
 
     @objc private func searchSubmitted(_ sender: NSSearchField) {
@@ -297,6 +321,7 @@ extension EditorWindowController: NSToolbarItemValidation {
         switch item.itemIdentifier {
         case Self.previewItemId: return editorViewController.canShowPreview
         case Self.sidebarItemId: return true
+        case Self.terminalItemId: return true
         default: return true
         }
     }

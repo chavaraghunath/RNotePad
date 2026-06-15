@@ -83,14 +83,25 @@ public final class TerminalSession: NSViewController, LocalProcessTerminalViewDe
 
     private func launch() {
         let shell = userLoginShell()
+        // Validate the start directory — a non-existent cwd makes the shell
+        // fail to chdir and exit immediately. Fall back to $HOME.
+        let cwd = validDirectory(startDirectory)
+            ?? FileManager.default.homeDirectoryForCurrentUser.path
         // Launch as an interactive login shell so the user's normal profile,
         // PATH and prompt apply — same as opening Terminal.app.
         let env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
+        DebugLog.log("[terminal] launch shell=\(shell) cwd=\(cwd)")
         terminalView.startProcess(executable: shell,
                                   args: ["-l"],
                                   environment: env,
                                   execName: nil,
-                                  currentDirectory: startDirectory)
+                                  currentDirectory: cwd)
+    }
+
+    private func validDirectory(_ path: String) -> String? {
+        var isDir: ObjCBool = false
+        let ok = FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
+        return (ok && isDir.boolValue) ? path : nil
     }
 
     private func userLoginShell() -> String {
@@ -151,6 +162,7 @@ public final class TerminalSession: NSViewController, LocalProcessTerminalViewDe
     }
 
     public func processTerminated(source: TerminalView, exitCode: Int32?) {
+        DebugLog.log("[terminal] processTerminated exitCode=\(exitCode.map(String.init) ?? "nil")")
         hasExited = true
         onExited?(self)
     }

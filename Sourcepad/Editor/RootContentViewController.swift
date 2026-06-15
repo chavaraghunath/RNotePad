@@ -46,7 +46,9 @@ public final class RootContentViewController: NSViewController {
 
         vSplit.splitView.isVertical = false           // horizontal divider → stack
         vSplit.splitView.dividerStyle = .thin
-        vSplit.splitView.autosaveName = "SourcepadEditorTerminalSplit"
+        // Deliberately no autosaveName: like the preview pane, the terminal
+        // must always start hidden. Persisting the divider state would restore
+        // it expanded across launches, which we don't want.
 
         editorItem = NSSplitViewItem(viewController: editor)
         editorItem.canCollapse = false
@@ -137,6 +139,7 @@ public final class RootContentViewController: NSViewController {
         toggleTerminal()
     }
 
+
     @objc public func sourcepadNewTerminal(_ sender: Any?) {
         if terminalItem.isCollapsed {
             ensureReasonableTerminalHeight()
@@ -159,5 +162,16 @@ public final class RootContentViewController: NSViewController {
             return sidebarRoot.path
         }
         return nil
+    }
+}
+
+extension RootContentViewController: NSMenuItemValidation {
+    /// Check-mark "Toggle Terminal" while the panel is showing (matches the way
+    /// other View-menu toggles reflect their state).
+    public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == Selector(("sourcepadToggleTerminal:")) {
+            menuItem.state = isShowingTerminal ? .on : .off
+        }
+        return true
     }
 }
