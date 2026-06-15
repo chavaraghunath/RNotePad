@@ -25,6 +25,21 @@ final class FlippedStackView: NSStackView {
     override var isFlipped: Bool { true }
 }
 
+/// The panel's root view, filled with the window background colour so the panel
+/// has an explicit, appearance-following backdrop (its child scroll view and
+/// header are transparent and would otherwise show through to nothing). Redraws
+/// when the effective appearance flips dark↔light.
+final class AgentPanelRootView: NSView {
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+    }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+}
+
 public final class AgentPanelViewController: NSViewController, AgentConversationDelegate {
 
     /// Resolves the directory new conversations run in (workspace root → doc → $HOME).
@@ -59,7 +74,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     // MARK: - Load
 
     public override func loadView() {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 720))
+        let root = AgentPanelRootView(frame: NSRect(x: 0, y: 0, width: 360, height: 720))
         root.wantsLayer = true
 
         buildHeader(in: root)

@@ -9,6 +9,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugLog.log("==== launch ====")
         NSWindow.allowsAutomaticWindowTabbing = true
 
+        // Apply the saved appearance preference so the user's Light/Dark choice
+        // persists across launches. Absent (the default) → NSApp.appearance stays
+        // nil, i.e. the app follows the system appearance. Previously the override
+        // was only applied live from the Preferences window and never re-applied
+        // at launch, so a chosen theme silently reverted on relaunch.
+        if let raw = UserDefaults.standard.string(forKey: "Sourcepad.themeOverride"),
+           let name = NSAppearance(named: NSAppearance.Name(rawValue: raw)) {
+            NSApp.appearance = name
+        } else {
+            NSApp.appearance = nil
+        }
+
         // Phase 2: prime the active workspace + start the background indexer
         // BEFORE the menu is built so the Workspace submenu picks up the
         // populated workspace list correctly.

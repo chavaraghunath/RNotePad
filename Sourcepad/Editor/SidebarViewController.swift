@@ -17,6 +17,23 @@ final class NameAlert: NSAlert {
     var input: String { field?.stringValue ?? "" }
 }
 
+/// Sidebar backdrop that re-resolves `windowBackgroundColor` whenever the
+/// effective appearance flips. Setting `layer.backgroundColor` to a concrete
+/// CGColor once (as a plain layer-backed view does) bakes in whatever
+/// appearance was active at load time — which is light/aqua while the view is
+/// still window-less — leaving the sidebar stuck white in Dark mode. Driving
+/// the fill through updateLayer() keeps it appearance-correct.
+final class SidebarRootView: NSView {
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+    }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+}
+
 public final class SidebarViewController: NSViewController,
                                           NSOutlineViewDataSource,
                                           NSOutlineViewDelegate,
@@ -50,9 +67,8 @@ public final class SidebarViewController: NSViewController,
     private let panelContainer = NSView()
 
     public override func loadView() {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 600))
+        let root = SidebarRootView(frame: NSRect(x: 0, y: 0, width: 240, height: 600))
         root.wantsLayer = true
-        root.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
         // Tab strip — Phase 9 ships Files + Outline + Tasks tabs.
         tabBar.tabs = [.files, .outline, .tasks]
