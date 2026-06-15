@@ -493,6 +493,25 @@ public enum MainMenu {
         previewItem.target = PreviewMenuTarget.shared
         viewMenu.addItem(previewItem)
 
+        viewMenu.addItem(.separator())
+
+        // Bottom integrated terminal. ⌃` toggles, ⌃⇧` spawns a new tab — the
+        // same shortcuts as VS Code. nil-target selectors route through the
+        // responder chain to RootContentViewController.
+        let terminalToggle = NSMenuItem(title: "Toggle Terminal",
+                                        action: Selector(("sourcepadToggleTerminal:")),
+                                        keyEquivalent: "`")
+        terminalToggle.keyEquivalentModifierMask = [.control]
+        viewMenu.addItem(terminalToggle)
+
+        let terminalNew = NSMenuItem(title: "New Terminal",
+                                     action: Selector(("sourcepadNewTerminal:")),
+                                     keyEquivalent: "`")
+        terminalNew.keyEquivalentModifierMask = [.control, .shift]
+        viewMenu.addItem(terminalNew)
+
+        viewMenu.addItem(.separator())
+
         // View → LSP Status (Phase 7) — dynamic menu rebuilt on open.
         let lspStatus = NSMenuItem(title: "LSP Status",
                                    action: nil,

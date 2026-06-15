@@ -11,6 +11,7 @@ public final class EditorWindowController: NSWindowController,
                                            NSSearchFieldDelegate {
 
     public let editorViewController: EditorViewController
+    private weak var rootContentViewController: RootContentViewController?
 
     private weak var searchField: NSSearchField?
     private var localKeyMonitor: Any?
@@ -24,6 +25,7 @@ public final class EditorWindowController: NSWindowController,
         bar.document = document
 
         let root = RootContentViewController(editor: vc, statusBar: bar)
+        self.rootContentViewController = root
 
         let window = NSWindow(contentViewController: root)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -43,6 +45,13 @@ public final class EditorWindowController: NSWindowController,
 
     deinit {
         if let m = localKeyMonitor { NSEvent.removeMonitor(m) }
+    }
+
+    // MARK: - NSWindowDelegate
+
+    public func windowWillClose(_ notification: Notification) {
+        // Kill any shells this window spawned so they don't outlive it.
+        rootContentViewController?.terminalPanel.terminateAll()
     }
 
     // MARK: - Auto-pair monitor

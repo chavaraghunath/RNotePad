@@ -184,6 +184,15 @@ SWIFT_SRCS=(
     "$APP_DIR/Vault/TouchIDVault.swift"
 )
 
+# Sourcepad integrated terminal (our wrappers) — auto-include everything under Terminal/.
+while IFS= read -r f; do SWIFT_SRCS+=("$f"); done \
+    < <(find "$APP_DIR/Terminal" -name '*.swift' 2>/dev/null | sort)
+
+# Vendored SwiftTerm (PTY + VT100 emulator). See ThirdParty/SwiftTerm/VENDORED.md.
+# Compiled into the single app module (no `import SwiftTerm`).
+while IFS= read -r f; do SWIFT_SRCS+=("$f"); done \
+    < <(find "$APP_DIR/ThirdParty/SwiftTerm" -name '*.swift' | sort)
+
 swiftc "${SWIFT_SRCS[@]}" \
     -module-name Sourcepad \
     -target arm64-apple-macos13.0 \
@@ -195,6 +204,12 @@ swiftc "${SWIFT_SRCS[@]}" \
     -framework AppKit \
     -framework Foundation \
     -framework WebKit \
+    -framework CoreText \
+    -framework QuartzCore \
+    -framework Carbon \
+    -framework MetalKit \
+    -framework Metal \
+    -framework ImageIO \
     -Xlinker "$BUILD_DIR/SciTextView.o" \
     -Xlinker "$BUILD_DIR/KeywordSetsGenerated.o" \
     $(printf -- '-Xlinker %s ' "${TS_OBJS[@]}") \
