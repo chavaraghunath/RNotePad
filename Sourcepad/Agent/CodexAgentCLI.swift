@@ -21,14 +21,25 @@ public final class CodexAgentCLI: AgentCLI {
     public var isAvailable: Bool { executableURL != nil }
 
     public func discoverModels() -> [AgentModel] {
-        // Codex has no machine-readable model list. Offer the configured default
-        // (from ~/.codex/config.toml) plus common ids; the user can type others.
+        // Codex exposes no machine-readable model list (`--model` takes a free
+        // string), so we offer the configured default (from ~/.codex/config.toml)
+        // first, then the current model family shipped with the installed CLI.
+        // The ids below were verified against the codex 0.139.0 model catalog
+        // (the gpt-5.1-codex generation is retired); the user can still type any
+        // other id. When the CLI ships new models, refresh this list.
         var models: [AgentModel] = []
         if let configured = configuredModel() {
             models.append(AgentModel(cliID: id, id: configured, displayName: "\(configured) (config)"))
         }
-        for m in ["gpt-5.1-codex-max", "gpt-5.1-codex", "gpt-5.1"] where !models.contains(where: { $0.id == m }) {
-            models.append(AgentModel(cliID: id, id: m, displayName: m))
+        let current: [(String, String)] = [
+            ("gpt-5.3-codex", "GPT-5.3 Codex"),   // current coding-tuned flagship
+            ("gpt-5.2-codex", "GPT-5.2 Codex"),   // prior coding-tuned
+            ("gpt-5.5",       "GPT-5.5"),          // newest general flagship
+            ("gpt-5.4",       "GPT-5.4"),
+            ("gpt-5.4-mini",  "GPT-5.4 mini"),     // fast / lower cost
+        ]
+        for (mid, label) in current where !models.contains(where: { $0.id == mid }) {
+            models.append(AgentModel(cliID: id, id: mid, displayName: label))
         }
         return models
     }
