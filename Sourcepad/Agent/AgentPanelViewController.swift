@@ -246,6 +246,75 @@ final class AgentChangesCard: NSView {
     }
 }
 
+/// A turn-level governance recap shown when the agent took one or more
+/// high-risk actions (per the policy engine). Red-tinted, lists each flagged
+/// action and why — so a risky action isn't lost in the streamed transcript.
+final class AgentGovernanceCard: NSView {
+    private let card = NSView()
+
+    init(actions: [(title: String, reason: String)]) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        build(actions)
+        applyColors()
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    private func build(_ actions: [(title: String, reason: String)]) {
+        card.wantsLayer = true
+        card.layer?.cornerRadius = 7
+        card.layer?.borderWidth = 1
+        card.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(card)
+
+        let n = actions.count
+        let header = NSTextField(labelWithString:
+            "⚠︎ \(n == 1 ? "1 high-risk action" : "\(n) high-risk actions") this turn")
+        header.font = .systemFont(ofSize: 11, weight: .semibold)
+        header.textColor = .systemRed
+        header.translatesAutoresizingMaskIntoConstraints = false
+
+        var rows: [NSView] = [header]
+        for a in actions.prefix(8) {
+            let line = NSTextField(labelWithString: "• \(a.title) — \(a.reason)")
+            line.font = .systemFont(ofSize: 10.5)
+            line.textColor = .secondaryLabelColor
+            line.lineBreakMode = .byTruncatingTail
+            line.maximumNumberOfLines = 2
+            line.translatesAutoresizingMaskIntoConstraints = false
+            rows.append(line)
+        }
+
+        let v = NSStackView(views: rows)
+        v.orientation = .vertical
+        v.alignment = .leading
+        v.spacing = 3
+        v.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(v)
+
+        NSLayoutConstraint.activate([
+            card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
+            card.topAnchor.constraint(equalTo: topAnchor, constant: 3),
+            card.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -3),
+            v.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10),
+            v.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -10),
+            v.topAnchor.constraint(equalTo: card.topAnchor, constant: 8),
+            v.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -8),
+        ])
+    }
+
+    private func applyColors() {
+        card.layer?.backgroundColor = NSColor.systemRed.withAlphaComponent(0.08).cgColor
+        card.layer?.borderColor = NSColor.systemRed.withAlphaComponent(0.4).cgColor
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyColors()
+    }
+}
+
 /// The panel's root view, filled with the window background colour so the panel
 /// has an explicit, appearance-following backdrop (its child scroll view and
 /// header are transparent and would otherwise show through to nothing). Redraws
@@ -297,6 +366,9 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private var toolCards: [String: AgentToolCard] = [:]
     private var selectedCLIID: String?
     private var emptyLabel: NSTextField?
+    // High-risk actions flagged by the policy engine during the current turn,
+    // surfaced as a governance summary when the turn finishes.
+    private var turnFlaggedActions: [(title: String, reason: String)] = []
 
     // MARK: - Load
 
@@ -593,8 +665,28 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     }
 
     @objc private func permChanged() {
-        controller?.permission = permissionMode
-        refreshStatus()
+        // Plan (read-only) needs no authorization.
+        guard permissionMode == .auto else {
+            controller?.permission = .readOnly
+            refreshStatus()
+            return
+        }
+        // Entering Auto grants the agent power to edit files and run commands —
+        // gate it behind device authentication (Touch ID / passcode). The vault
+        // caches a successful auth briefly, so toggling isn't naggy.
+        TouchIDVault.shared.authenticate(
+            reason: "allow the agent to edit files and run commands (Auto mode)"
+        ) { [weak self] ok in
+            guard let self else { return }
+            if ok {
+                self.controller?.permission = .auto
+            } else {
+                // Cancelled or failed — fall back to the safe Plan mode.
+                self.permPopup.selectItem(withTitle: "Plan")
+                self.controller?.permission = .readOnly
+            }
+            self.refreshStatus()
+        }
     }
 
     @objc private func showHistory() {
@@ -681,6 +773,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         // Assistant bubbles are created lazily on the first text delta so a
         // tool-only turn doesn't leave an empty bubble.
         streamingBubble = nil
+        turnFlaggedActions.removeAll()
         statusLabel.stringValue = "Thinking…"
         sendButton.isEnabled = false
         controller?.send(text, editorContext: editorContext)
@@ -864,6 +957,13 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         // after the tool card, matching the agent's interleaved output.
         streamingBubble = nil
         let card = AgentToolCard(toolCall: toolCall)
+        // Governance: classify the action and annotate the card; remember
+        // high-risk ones for the turn-level summary.
+        let verdict = AgentPolicy.evaluate(toolCall, workspaceRoot: c.workingDirectory)
+        card.setRisk(verdict)
+        if verdict.risk == .high {
+            turnFlaggedActions.append((toolCall.title, verdict.reason ?? "High-risk action"))
+        }
         toolCards[toolCall.id] = card
         addArrangedRow(card)
     }
@@ -887,6 +987,12 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         refreshStatus()
         updateCostReadout()
         updateBudgetGate()
+        // Governance: if the agent took any high-risk actions this turn, recap
+        // them so they aren't missed in the stream.
+        if !turnFlaggedActions.isEmpty {
+            addArrangedRow(AgentGovernanceCard(actions: turnFlaggedActions))
+            turnFlaggedActions.removeAll()
+        }
         if let error {
             if let b = streamingBubble, b.text.isEmpty {
                 b.setText("⚠︎ \(error)")

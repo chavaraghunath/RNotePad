@@ -74,12 +74,14 @@ public struct AgentToolCall: Codable {
     public let kind: Kind
     public let title: String        // "Edit Foo.swift", "$ npm test", …
     public let detail: String?      // diff / command / args, for the card body
+    public let path: String?        // absolute target path for file ops (governance)
 
-    public init(id: String, kind: Kind, title: String, detail: String? = nil) {
+    public init(id: String, kind: Kind, title: String, detail: String? = nil, path: String? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
         self.detail = detail
+        self.path = path
     }
 }
 

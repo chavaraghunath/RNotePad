@@ -57,4 +57,15 @@ enum AgentJSON {
         default:          return nil
         }
     }
+
+    /// The absolute target path for a file tool, used by the governance policy
+    /// (the title only carries the basename). Nil for non-file tools.
+    static func toolPath(forClaudeTool name: String, input: [String: Any]) -> String? {
+        switch name {
+        case "Write", "Edit", "MultiEdit", "Read", "NotebookEdit":
+            return input["file_path"] as? String
+        default:
+            return nil
+        }
+    }
 }

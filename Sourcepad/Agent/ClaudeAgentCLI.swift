@@ -130,7 +130,8 @@ public final class ClaudeAgentCLI: AgentCLI {
                 id: block["id"] as? String ?? UUID().uuidString,
                 kind: AgentJSON.toolKind(forClaudeTool: name),
                 title: AgentJSON.toolTitle(forClaudeTool: name, input: input),
-                detail: AgentJSON.toolDetail(forClaudeTool: name, input: input))))
+                detail: AgentJSON.toolDetail(forClaudeTool: name, input: input),
+                path: AgentJSON.toolPath(forClaudeTool: name, input: input))))
         default:
             break
         }

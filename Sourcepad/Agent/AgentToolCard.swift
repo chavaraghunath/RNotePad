@@ -16,8 +16,10 @@ public final class AgentToolCard: NSView {
     public let toolID: String
     private let icon = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
+    private let riskBadge = NSTextField(labelWithString: "")
     private let statusDot = NSTextField(labelWithString: "")
     private let disclosure = NSButton()
+    private var riskTier: AgentPolicy.Risk = .allow
     private let detailLabel = NSTextField(labelWithString: "")
     private let card = NSView()
     private var detailText: String?
@@ -52,6 +54,14 @@ public final class AgentToolCard: NSView {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
+        riskBadge.font = .systemFont(ofSize: 9, weight: .semibold)
+        riskBadge.translatesAutoresizingMaskIntoConstraints = false
+        riskBadge.wantsLayer = true
+        riskBadge.drawsBackground = false
+        riskBadge.isHidden = true
+        riskBadge.setContentHuggingPriority(.required, for: .horizontal)
+        riskBadge.setContentCompressionResistancePriority(.required, for: .horizontal)
+
         statusDot.font = .systemFont(ofSize: 11)
         statusDot.translatesAutoresizingMaskIntoConstraints = false
 
@@ -71,7 +81,7 @@ public final class AgentToolCard: NSView {
         detailLabel.stringValue = detailText ?? ""
         detailLabel.isHidden = true
 
-        let head = NSStackView(views: [icon, titleLabel, statusDot, disclosure])
+        let head = NSStackView(views: [icon, titleLabel, riskBadge, statusDot, disclosure])
         head.orientation = .horizontal
         head.spacing = 6
         head.alignment = .centerY
@@ -123,9 +133,42 @@ public final class AgentToolCard: NSView {
         }
     }
 
+    /// Annotate the card with a governance risk verdict. `.allow` hides the
+    /// badge; `.caution`/`.high` show a coloured pill with the reason as tooltip.
+    public func setRisk(_ verdict: AgentPolicy.Verdict) {
+        riskTier = verdict.risk
+        switch verdict.risk {
+        case .allow:
+            riskBadge.isHidden = true
+        case .caution:
+            riskBadge.isHidden = false
+            riskBadge.stringValue = "  CAUTION  "
+            riskBadge.toolTip = verdict.reason
+        case .high:
+            riskBadge.isHidden = false
+            riskBadge.stringValue = "  HIGH RISK  "
+            riskBadge.toolTip = verdict.reason
+        }
+        applyColors()
+    }
+
     private func applyColors() {
-        card.layer?.backgroundColor = NSColor.textColor.withAlphaComponent(0.04).cgColor
         card.layer?.borderColor = NSColor.separatorColor.cgColor
+        riskBadge.layer?.cornerRadius = 4
+        // Tint the whole card by risk so high-risk actions are noticeable at a glance.
+        switch riskTier {
+        case .allow:
+            card.layer?.backgroundColor = NSColor.textColor.withAlphaComponent(0.04).cgColor
+        case .caution:
+            card.layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.08).cgColor
+            riskBadge.textColor = .systemOrange
+            riskBadge.layer?.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.16).cgColor
+        case .high:
+            card.layer?.backgroundColor = NSColor.systemRed.withAlphaComponent(0.10).cgColor
+            card.layer?.borderColor = NSColor.systemRed.withAlphaComponent(0.5).cgColor
+            riskBadge.textColor = .systemRed
+            riskBadge.layer?.backgroundColor = NSColor.systemRed.withAlphaComponent(0.18).cgColor
+        }
     }
 
     public override func viewDidChangeEffectiveAppearance() {
