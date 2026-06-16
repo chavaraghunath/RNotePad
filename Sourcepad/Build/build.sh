@@ -10,6 +10,7 @@ APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"               # .../Sourcepad
 REPO_ROOT="$(cd "$APP_DIR/.." && pwd)"                # repo root
 BUILD_DIR="$APP_DIR/dist"
 APP_BUNDLE="$BUILD_DIR/Sourcepad.app"
+DERIVED_DATA_DIR="${SOURCEPAD_DERIVED_DATA_DIR:-$BUILD_DIR/DerivedData}"
 SCI_PROJ="$REPO_ROOT/scintilla/cocoa/ScintillaTest/ScintillaTest.xcodeproj"
 LEXILLA_INC="$REPO_ROOT/lexilla/include"
 TS_ROOT="$REPO_ROOT/tree-sitter"
@@ -17,14 +18,16 @@ TS_ROOT="$REPO_ROOT/tree-sitter"
 # 1+2. Build Scintilla.framework + liblexilla.dylib
 echo "==> Building Scintilla.framework + liblexilla.dylib"
 xcodebuild -project "$SCI_PROJ" -scheme Scintilla -configuration Release \
+    -derivedDataPath "$DERIVED_DATA_DIR" \
     CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
     build 2>&1 | tail -3
 xcodebuild -project "$SCI_PROJ" -scheme lexilla -configuration Release \
+    -derivedDataPath "$DERIVED_DATA_DIR" \
     CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
     build 2>&1 | tail -3
 
-DD=~/Library/Developer/Xcode/DerivedData
-SCI_BUILD=$(ls -dt "$DD"/ScintillaTest-*/Build/Products/Release | head -1)
+DD="$DERIVED_DATA_DIR"
+SCI_BUILD=$(find "$DD" -path '*/Build/Products/Release' -type d | sort | tail -1)
 if [ ! -d "$SCI_BUILD/Scintilla.framework" ]; then
     echo "error: Scintilla.framework not found at $SCI_BUILD" >&2
     exit 1
@@ -192,6 +195,10 @@ while IFS= read -r f; do SWIFT_SRCS+=("$f"); done \
 # Sourcepad agent panel (CLI-driven agent conversation) — auto-include everything under Agent/.
 while IFS= read -r f; do SWIFT_SRCS+=("$f"); done \
     < <(find "$APP_DIR/Agent" -name '*.swift' 2>/dev/null | sort)
+
+# SourceGraph knowledge graph + MCP server — auto-include everything under SourceGraph except tests.
+while IFS= read -r f; do SWIFT_SRCS+=("$f"); done \
+    < <(find "$APP_DIR/SourceGraph" -path "$APP_DIR/SourceGraph/Tests" -prune -o -name '*.swift' -print 2>/dev/null | sort)
 
 # Vendored SwiftTerm (PTY + VT100 emulator). See ThirdParty/SwiftTerm/VENDORED.md.
 # Compiled into the single app module (no `import SwiftTerm`).
