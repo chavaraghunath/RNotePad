@@ -59,6 +59,7 @@ final class SettingsSplitViewController: NSSplitViewController {
         SettingsSection(id: "appearance", title: "Appearance", symbol: "paintpalette")     { SettingsAppearancePane() },
         SettingsSection(id: "agents",     title: "Agent CLIs", symbol: "terminal")         { AgentCLIManagerViewController() },
         SettingsSection(id: "mlx",        title: "MLX Models", symbol: "cpu")               { MLXModelsViewController() },
+        SettingsSection(id: "mcp",        title: "MCP",        symbol: "point.3.connected.trianglepath.dotted") { SettingsMCPPane() },
     ]
 
     private lazy var sidebar = SettingsSidebarViewController(sections: sections)

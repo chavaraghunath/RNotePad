@@ -140,6 +140,14 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: "Sourcepad.agentSandboxEnabled"); notify() }
     }
 
+    /// When true (default), Sourcepad mirrors its managed MCP servers (SourceGraph
+    /// + custom) into every detected agent CLI's config on launch and whenever the
+    /// registry changes. Writes are change-detected, backed up, and managed-only.
+    public var mcpAutoSyncEnabled: Bool {
+        get { defaults.object(forKey: "Sourcepad.mcpAutoSyncEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "Sourcepad.mcpAutoSyncEnabled"); notify() }
+    }
+
     // MARK: - Workspace (Phase 2)
 
     /// Stable id of the active workspace. nil = pick whichever exists first

@@ -47,6 +47,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Never blocks launch.
         AgentRegistry.shared.warmUp()
 
+        // Mirror managed MCP servers (SourceGraph + custom) into every detected
+        // agent CLI. Off-main; change-detected so it's a no-op once in sync.
+        syncMCPInBackground()
+        NotificationCenter.default.addObserver(self, selector: #selector(mcpRegistryChanged),
+                                               name: MCPRegistry.didChange, object: nil)
+
         NSApp.mainMenu = MainMenu.build()
         NSApp.activate(ignoringOtherApps: true)
 
@@ -113,6 +119,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         if urls.isEmpty { sender.reply(toOpenOrPrint: .success) }
+    }
+
+    // MARK: - MCP sync
+
+    @objc private func mcpRegistryChanged() { syncMCPInBackground() }
+
+    /// Mirror the managed MCP registry into the agent CLIs off the main thread.
+    /// No-op when auto-sync is disabled. Writes are change-detected + backed up.
+    private func syncMCPInBackground() {
+        guard Preferences.shared.mcpAutoSyncEnabled else { return }
+        let root = WorkspaceManager.shared.activeWorkspace.roots.first?.path ?? NSHomeDirectory()
+        DispatchQueue.global(qos: .utility).async {
+            let reports = MCPSyncEngine.syncAll(workspaceRoot: root)
+            for r in reports where r.outcome != .unchanged && r.outcome != .absent {
+                NSLog("[Sourcepad] MCP sync \(r.cli): \(r.outcome)")
+            }
+        }
     }
 
     // Legacy single-file open.

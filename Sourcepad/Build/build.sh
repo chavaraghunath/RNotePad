@@ -95,6 +95,7 @@ SWIFT_SRCS=(
     "$APP_DIR/App/DebugLog.swift"
     "$APP_DIR/App/Preferences.swift"
     "$APP_DIR/App/SettingsWindowController.swift"
+    "$APP_DIR/App/SettingsMCPPane.swift"
     "$APP_DIR/App/SessionRestore.swift"
     "$APP_DIR/App/ClosedTabHistory.swift"
     "$APP_DIR/Workspace/Workspace.swift"
