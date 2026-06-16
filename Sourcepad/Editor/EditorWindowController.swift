@@ -39,8 +39,22 @@ public final class EditorWindowController: NSWindowController,
         window.delegate = self
         window.registerForDraggedTypes([.fileURL])
 
+        // The document tab strip's × closes this window's document. performClose
+        // runs the standard unsaved-changes review first.
+        vc.documentTabBar.onClose = { [weak window] in window?.performClose(nil) }
+
         installToolbar(on: window)
         installAutoPairMonitor()
+        updateDocumentTabBarVisibility()
+    }
+
+    /// Show our custom document tab strip only when macOS isn't already drawing
+    /// its native tab bar for this window's group (2+ tabbed documents). That
+    /// keeps a single visible close affordance in every configuration.
+    private func updateDocumentTabBarVisibility() {
+        let nativeTabBarVisible = window?.tabGroup?.isTabBarVisible ?? false
+        editorViewController.setDocumentTabBarVisible(!nativeTabBarVisible)
+        editorViewController.documentTabBar.refresh()
     }
 
     deinit {
@@ -48,6 +62,12 @@ public final class EditorWindowController: NSWindowController,
     }
 
     // MARK: - NSWindowDelegate
+
+    // Re-evaluate the custom tab strip when this window gains focus — that's when
+    // a native tab is added (this window resigns, another becomes key) or removed
+    // (collapsing back to a lone window that becomes key again).
+    public func windowDidBecomeKey(_ notification: Notification) { updateDocumentTabBarVisibility() }
+    public func windowDidBecomeMain(_ notification: Notification) { updateDocumentTabBarVisibility() }
 
     public func windowWillClose(_ notification: Notification) {
         // Kill any shells this window spawned so they don't outlive it.

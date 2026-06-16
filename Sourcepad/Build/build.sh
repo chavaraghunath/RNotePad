@@ -140,6 +140,7 @@ SWIFT_SRCS=(
     "$APP_DIR/Editor/SidebarViewController.swift"
     "$APP_DIR/Editor/StatusBarView.swift"
     "$APP_DIR/Editor/RootContentViewController.swift"
+    "$APP_DIR/Editor/DocumentTabBar.swift"
     "$APP_DIR/Editor/AppearanceForwardingView.swift"
     "$APP_DIR/Editor/FileDropOverlay.swift"
     "$APP_DIR/Editor/PreviewRenderer.swift"

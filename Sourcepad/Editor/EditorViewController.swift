@@ -22,6 +22,10 @@ public final class EditorViewController: NSSplitViewController {
     public let editorPane: EditorPaneViewController?
     public let previewPane: PreviewPaneViewController
 
+    /// The VS Code–style tab strip shown above the editor content.
+    public let documentTabBar: DocumentTabBar
+    private let editorColumn: EditorColumnViewController
+
     private let sidebarItem: NSSplitViewItem
     private let editorItem: NSSplitViewItem
     private let previewItem: NSSplitViewItem
@@ -48,10 +52,15 @@ public final class EditorViewController: NSSplitViewController {
         self.sidebarItem = si
 
         // The factory returns an NSViewController (EditorContent's view is
-        // its NSView); pick the appropriate NSSplitViewItem constructor.
+        // its NSView); the editor column stacks the document tab strip above it
+        // so the tabs sit directly over the editor (right of the sidebar).
         let contentVC: NSViewController = (content as? NSViewController)
             ?? NSViewController()  // unreachable for current conformers
-        let ei = NSSplitViewItem(viewController: contentVC)
+        self.documentTabBar = DocumentTabBar()
+        documentTabBar.document = document
+        let column = EditorColumnViewController(tabBar: documentTabBar, content: contentVC)
+        self.editorColumn = column
+        let ei = NSSplitViewItem(viewController: column)
         ei.minimumThickness = 320
         ei.holdingPriority = NSLayoutConstraint.Priority(250)
         self.editorItem = ei
@@ -95,9 +104,17 @@ public final class EditorViewController: NSSplitViewController {
         fatalError("init(coder:) not used")
     }
 
+    /// Show/hide the custom document tab strip (collapsed to zero height when
+    /// hidden so it leaves no gap). Hidden when macOS draws its own native tab
+    /// bar for a window group, to avoid a redundant double strip.
+    public func setDocumentTabBarVisible(_ visible: Bool) {
+        editorColumn.setTabBarVisible(visible)
+    }
+
     public override func viewDidLoad() {
         super.viewDidLoad()
         editorContent.documentContentsDidLoad()
+        documentTabBar.refresh()
         // Default sidebar root = enclosing folder of the document.
         if let url = document?.fileURL {
             sidebarPane.setRoot(url.deletingLastPathComponent())
@@ -121,6 +138,7 @@ public final class EditorViewController: NSSplitViewController {
 
     public func documentContentsDidLoad() {
         editorContent.documentContentsDidLoad()
+        documentTabBar.refresh()
         if !previewItem.isCollapsed { schedulePreviewRender(immediate: true) }
         view.window?.toolbar?.validateVisibleItems()
     }
@@ -216,5 +234,51 @@ public final class EditorViewController: NSSplitViewController {
         let isDark = ThemeMode.from(view.effectiveAppearance) == .dark
         previewPane.render(source: source, kind: kind, baseURL: baseURL, isDark: isDark,
                            fileURL: document?.fileURL)
+    }
+}
+
+// MARK: - Editor column (tab strip stacked above the editor content)
+
+/// Stacks `DocumentTabBar` above the editor content view controller so the tabs
+/// render directly over the editor pane. The strip collapses to zero height when
+/// hidden, leaving the editor flush to the top.
+final class EditorColumnViewController: NSViewController {
+
+    private let tabBar: DocumentTabBar
+    private let content: NSViewController
+    private var tabBarHeight: NSLayoutConstraint!
+    private static let stripHeight: CGFloat = 34
+
+    init(tabBar: DocumentTabBar, content: NSViewController) {
+        self.tabBar = tabBar
+        self.content = content
+        super.init(nibName: nil, bundle: nil)
+        addChild(content)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    override func loadView() {
+        let root = NSView()
+        tabBar.translatesAutoresizingMaskIntoConstraints = false
+        content.view.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(tabBar)
+        root.addSubview(content.view)
+        tabBarHeight = tabBar.heightAnchor.constraint(equalToConstant: Self.stripHeight)
+        NSLayoutConstraint.activate([
+            tabBar.topAnchor.constraint(equalTo: root.topAnchor),
+            tabBar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            tabBar.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            tabBarHeight,
+            content.view.topAnchor.constraint(equalTo: tabBar.bottomAnchor),
+            content.view.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            content.view.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            content.view.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+        ])
+        self.view = root
+    }
+
+    func setTabBarVisible(_ visible: Bool) {
+        tabBar.isHidden = !visible
+        tabBarHeight.constant = visible ? Self.stripHeight : 0
     }
 }
