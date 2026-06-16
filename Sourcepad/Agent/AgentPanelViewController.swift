@@ -681,6 +681,9 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         let manage = NSMenuItem(title: "Manage CLIs…", action: nil, keyEquivalent: "")
         manage.representedObject = "__manage__"
         cliPopup.menu?.addItem(manage)
+        let mlx = NSMenuItem(title: "MLX Models…", action: nil, keyEquivalent: "")
+        mlx.representedObject = "__mlx__"
+        cliPopup.menu?.addItem(mlx)
         if let prev = previous, let idx = clis.firstIndex(where: { $0.id == prev }) {
             cliPopup.selectItem(at: idx)
             selectedCLIID = prev
@@ -718,8 +721,10 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     @objc private func cliChanged() {
         // The trailing "Manage CLIs…" entry opens the manager and restores the
         // previous selection rather than changing the active CLI.
-        if (cliPopup.selectedItem?.representedObject as? String) == "__manage__" {
-            AgentCLIManagerWindowController.shared.show()
+        let sentinel = cliPopup.selectedItem?.representedObject as? String
+        if sentinel == "__manage__" || sentinel == "__mlx__" {
+            if sentinel == "__mlx__" { MLXModelsWindowController.shared.show() }
+            else { AgentCLIManagerWindowController.shared.show() }
             if let id = selectedCLIID,
                let idx = (0..<cliPopup.numberOfItems).first(where: { (cliPopup.item(at: $0)?.representedObject as? String) == id }) {
                 cliPopup.selectItem(at: idx)
