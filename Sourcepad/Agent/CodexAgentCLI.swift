@@ -71,7 +71,11 @@ public final class CodexAgentCLI: AgentCLI {
         args += ["--json", "--skip-git-repo-check", "-C", request.workingDirectory]
         switch request.permission {
         case .readOnly, .ask: args += ["--sandbox", "read-only"]
-        case .auto:           args += ["--sandbox", "workspace-write", "-c", "approval_policy=\"never\""]
+        case .auto:
+            // Sandbox toggle (Settings ▸ Agent CLIs): when on, confine writes to
+            // the working directory; when off, grant full disk access.
+            let sandbox = Preferences.shared.agentSandboxEnabled ? "workspace-write" : "danger-full-access"
+            args += ["--sandbox", sandbox, "-c", "approval_policy=\"never\""]
         }
         if let model = request.model { args += ["-m", model] }
         args.append(composePrompt(request))

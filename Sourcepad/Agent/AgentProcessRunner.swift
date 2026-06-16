@@ -139,13 +139,20 @@ public final class AgentProcessRunner: AgentTurnHandle {
     // MARK: - Stream plumbing
 
     private func ingest(_ chunk: Data) {
+        // `stdoutBuffer` is touched by both this stdout handler and
+        // handleTermination (different threads) — guard it with `lock`. Deliver
+        // outside the lock so we never hold it across a dispatch.
+        var lines: [Data] = []
+        lock.lock()
         stdoutBuffer.append(chunk)
         // Split on newlines; keep the trailing partial in the buffer.
         while let nl = stdoutBuffer.firstIndex(of: 0x0A) {
             let lineData = stdoutBuffer.subdata(in: stdoutBuffer.startIndex..<nl)
             stdoutBuffer.removeSubrange(stdoutBuffer.startIndex...nl)
-            deliver(lineData)
+            lines.append(lineData)
         }
+        lock.unlock()
+        for lineData in lines { deliver(lineData) }
     }
 
     private func deliver(_ lineData: Data) {
@@ -163,12 +170,13 @@ public final class AgentProcessRunner: AgentTurnHandle {
     }
 
     private func handleTermination(code: Int32) {
-        // Flush any trailing line without a newline.
-        if !stdoutBuffer.isEmpty {
-            let tail = stdoutBuffer
-            stdoutBuffer.removeAll()
-            deliver(tail)
-        }
+        // Flush any trailing line without a newline. Snapshot under the lock so
+        // we don't race a concurrent ingest() on stdoutBuffer.
+        lock.lock()
+        let tail = stdoutBuffer
+        stdoutBuffer.removeAll()
+        lock.unlock()
+        if !tail.isEmpty { deliver(tail) }
         stdoutPipe.fileHandleForReading.readabilityHandler = nil
         stderrPipe.fileHandleForReading.readabilityHandler = nil
         lock.lock(); finished = true; let err = stderrText; lock.unlock()

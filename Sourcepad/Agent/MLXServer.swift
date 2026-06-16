@@ -81,16 +81,18 @@ public final class MLXServer {
         var req = URLRequest(url: url)
         req.timeoutInterval = 2
         let sem = DispatchSemaphore(value: 0)
+        let lock = NSLock()
         var model: String?
         URLSession.shared.dataTask(with: req) { data, resp, _ in
             if (resp as? HTTPURLResponse)?.statusCode == 200, let data,
                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let arr = obj["data"] as? [[String: Any]], let first = arr.first {
-                model = first["id"] as? String
+                lock.lock(); model = first["id"] as? String; lock.unlock()
             }
             sem.signal()
         }.resume()
         _ = sem.wait(timeout: .now() + 3)
+        lock.lock(); defer { lock.unlock() }
         return model
     }
 
@@ -100,12 +102,14 @@ public final class MLXServer {
         var req = URLRequest(url: url)
         req.timeoutInterval = 2
         let sem = DispatchSemaphore(value: 0)
+        let lock = NSLock()
         var ok = false
         URLSession.shared.dataTask(with: req) { _, resp, _ in
-            ok = (resp as? HTTPURLResponse)?.statusCode == 200
+            lock.lock(); ok = (resp as? HTTPURLResponse)?.statusCode == 200; lock.unlock()
             sem.signal()
         }.resume()
         _ = sem.wait(timeout: .now() + 3)
+        lock.lock(); defer { lock.unlock() }
         return ok
     }
 }

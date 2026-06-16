@@ -24,6 +24,7 @@ public final class AgentCLIManagerViewController: NSViewController,
 
     private let table = NSTableView()
     private let removeButton = NSButton()
+    private let sandboxCheck = NSButton()
     private var rows: [Row] = []
 
     private struct Row {
@@ -79,7 +80,22 @@ public final class AgentCLIManagerViewController: NSViewController,
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .secondaryLabelColor
         hint.translatesAutoresizingMaskIntoConstraints = false
+
+        sandboxCheck.title = "Run agents sandboxed (confine file writes to the working folder)"
+        sandboxCheck.setButtonType(.switch)
+        sandboxCheck.target = self
+        sandboxCheck.action = #selector(toggleSandbox(_:))
+        sandboxCheck.state = Preferences.shared.agentSandboxEnabled ? .on : .off
+        sandboxCheck.translatesAutoresizingMaskIntoConstraints = false
+
+        let sandboxNote = NSTextField(labelWithString: "Off grants full disk access (more capable, unsandboxed). Applies to Auto runs; Ask / Read-only stay restricted.")
+        sandboxNote.font = .systemFont(ofSize: 11)
+        sandboxNote.textColor = .secondaryLabelColor
+        sandboxNote.translatesAutoresizingMaskIntoConstraints = false
+
         content.addSubview(hint)
+        content.addSubview(sandboxCheck)
+        content.addSubview(sandboxNote)
         content.addSubview(buttons)
 
         NSLayoutConstraint.activate([
@@ -88,12 +104,21 @@ public final class AgentCLIManagerViewController: NSViewController,
             scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
             hint.topAnchor.constraint(equalTo: scroll.bottomAnchor, constant: 8),
             hint.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-            buttons.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 8),
+            sandboxCheck.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 10),
+            sandboxCheck.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+            sandboxNote.topAnchor.constraint(equalTo: sandboxCheck.bottomAnchor, constant: 2),
+            sandboxNote.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 30),
+            sandboxNote.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor, constant: -12),
+            buttons.topAnchor.constraint(equalTo: sandboxNote.bottomAnchor, constant: 10),
             buttons.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
             buttons.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
             buttons.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
         ])
         self.view = content
+    }
+
+    @objc private func toggleSandbox(_ sender: NSButton) {
+        Preferences.shared.agentSandboxEnabled = (sender.state == .on)
     }
 
     public override func viewWillAppear() {

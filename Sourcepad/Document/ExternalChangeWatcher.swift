@@ -40,23 +40,32 @@ public final class ExternalChangeWatcher {
     private var debounce: DispatchWorkItem?
     private let debounceInterval: TimeInterval = 0.15
 
+    /// Guards `lastMTime`, `lastSize`, and `_isPerformingSave`, all of which are
+    /// read from the `.global()` VNODE handler and written from save flows that
+    /// may run off the main thread.
+    private let stateLock = NSLock()
+
     /// Last-known disk state. Used to suppress spurious VNODE events
     /// where mtime + size haven't actually changed (touch / metadata
     /// rewrites / sync agents). Updated on start() and refreshSnapshot().
     private var lastMTime: TimeInterval = 0
     private var lastSize: Int64 = 0
 
+    private var _isPerformingSave = false
+
     /// Set true around save() flows to suppress the inevitable self-write.
     /// TextDocument.write(to:ofType:) releases this 0.5s after super.write
     /// returns so the in-flight VNODE notification has time to arrive.
-    public var isPerformingSave: Bool = false {
-        didSet {
-            // When the save sequence ends, refresh the snapshot so a
-            // future VNODE event compares against the *new* on-disk
-            // mtime — not the pre-save one.
-            if oldValue == true && isPerformingSave == false {
-                refreshSnapshot()
-            }
+    public var isPerformingSave: Bool {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return _isPerformingSave }
+        set {
+            stateLock.lock()
+            let was = _isPerformingSave
+            _isPerformingSave = newValue
+            stateLock.unlock()
+            // When the save sequence ends, refresh the snapshot so a future
+            // VNODE event compares against the *new* on-disk mtime.
+            if was && !newValue { refreshSnapshot() }
         }
     }
 
@@ -122,12 +131,14 @@ public final class ExternalChangeWatcher {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path) else {
             return
         }
+        stateLock.lock()
         if let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 {
             lastMTime = mtime
         }
         if let size = (attrs[.size] as? NSNumber)?.int64Value {
             lastSize = size
         }
+        stateLock.unlock()
     }
 
     /// True if mtime OR size differs from what we last recorded — i.e.
@@ -141,6 +152,8 @@ public final class ExternalChangeWatcher {
         }
         let curMTime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
         let curSize  = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        stateLock.lock()
+        defer { stateLock.unlock() }
         let mtimeChanged = abs(curMTime - lastMTime) > 0.01
         let sizeChanged  = curSize != lastSize
         if mtimeChanged || sizeChanged {

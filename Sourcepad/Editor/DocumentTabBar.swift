@@ -40,20 +40,18 @@ public final class DocumentTabBar: NSView {
     private func build() {
         wantsLayer = true
         translatesAutoresizingMaskIntoConstraints = false
-        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
         bottomBorder.wantsLayer = true
-        bottomBorder.layer?.backgroundColor = NSColor.separatorColor.cgColor
         bottomBorder.translatesAutoresizingMaskIntoConstraints = false
         addSubview(bottomBorder)
 
         // The tab "pill" sits flush to the bottom so it reads as connected to
         // the editor surface below it (VS Code's active-tab look).
         tab.wantsLayer = true
-        tab.layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
         tab.translatesAutoresizingMaskIntoConstraints = false
         tab.onClick = { [weak self] in self?.focusEditor() }
         tab.onMiddleClick = { [weak self] in self?.onClose?() }
+        tab.setAccessibilityRole(.button)
         addSubview(tab)
 
         icon.translatesAutoresizingMaskIntoConstraints = false
@@ -67,7 +65,6 @@ public final class DocumentTabBar: NSView {
         titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         modifiedDot.wantsLayer = true
-        modifiedDot.layer?.backgroundColor = NSColor.secondaryLabelColor.cgColor
         modifiedDot.layer?.cornerRadius = 3
         modifiedDot.translatesAutoresizingMaskIntoConstraints = false
 
@@ -87,8 +84,10 @@ public final class DocumentTabBar: NSView {
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         closeButton.wantsLayer = true
         closeButton.layer?.cornerRadius = 4
+        closeButton.setAccessibilityLabel("Close tab")
 
         [icon, titleLabel, modifiedDot, closeButton].forEach { tab.addSubview($0) }
+        applyColors()
 
         NSLayoutConstraint.activate([
             bottomBorder.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -127,6 +126,25 @@ public final class DocumentTabBar: NSView {
 
     deinit { NotificationCenter.default.removeObserver(self) }
 
+    // MARK: - Appearance
+
+    /// Layer colors are CGColors that don't auto-update with the system theme,
+    /// so resolve them in the current effective appearance and re-apply whenever
+    /// it changes (Light ↔ Dark).
+    private func applyColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+            bottomBorder.layer?.backgroundColor = NSColor.separatorColor.cgColor
+            tab.layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
+            modifiedDot.layer?.backgroundColor = NSColor.secondaryLabelColor.cgColor
+        }
+    }
+
+    public override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        applyColors()
+    }
+
     // MARK: - Refresh
 
     /// Sync the tab's title, icon and modified indicator from the document.
@@ -142,6 +160,7 @@ public final class DocumentTabBar: NSView {
 
         let edited = document?.isDocumentEdited ?? false
         modifiedDot.isHidden = !edited
+        tab.setAccessibilityLabel(edited ? "\(name) (edited)" : name)
         toolTipForTab()
     }
 

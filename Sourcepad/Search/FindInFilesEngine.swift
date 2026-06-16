@@ -35,8 +35,23 @@ public final class FindInFilesEngine {
     ]
 
     private let queue = DispatchQueue(label: "Sourcepad.FIF", qos: .userInitiated)
-    private var cancelled = false
-    public private(set) var isRunning = false
+
+    // `cancelled` is set from the caller (cancel()) and read on the search
+    // queue/walk; `isRunning` is written from both the caller and the queue.
+    // Back both with a lock so the cross-thread access is well-defined.
+    private let stateLock = NSLock()
+    private var _cancelled = false
+    private var _isRunning = false
+    private var cancelled: Bool {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return _cancelled }
+        set { stateLock.lock(); _cancelled = newValue; stateLock.unlock() }
+    }
+    public var isRunning: Bool {
+        stateLock.lock(); defer { stateLock.unlock() }; return _isRunning
+    }
+    private func setRunning(_ value: Bool) {
+        stateLock.lock(); _isRunning = value; stateLock.unlock()
+    }
 
     public init() {}
 
@@ -50,7 +65,7 @@ public final class FindInFilesEngine {
                        onComplete: @escaping (Int) -> Void) {
         guard !query.isEmpty else { onComplete(0); return }
         cancelled = false
-        isRunning = true
+        setRunning(true)
         queue.async { [weak self] in
             guard let self else { return }
             var totalMatches = 0
@@ -66,7 +81,7 @@ public final class FindInFilesEngine {
             }
             let finalCount = totalMatches
             DispatchQueue.main.async {
-                self.isRunning = false
+                self.setRunning(false)
                 onComplete(finalCount)
             }
         }

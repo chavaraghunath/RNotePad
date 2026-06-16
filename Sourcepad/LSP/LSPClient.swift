@@ -109,8 +109,10 @@ public final class LSPClient {
             stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
                 let chunk = handle.availableData
                 if chunk.isEmpty {
-                    // EOF — server closed its stdout.
+                    // EOF — server closed its stdout. Fail any in-flight requests
+                    // so their callers don't wait forever.
                     handle.readabilityHandler = nil
+                    self?.queue.async { self?.failAllPending(message: "LSP server closed the connection") }
                     return
                 }
                 self?.queue.async {
@@ -152,6 +154,7 @@ public final class LSPClient {
             self.isRunning = false
             self.stdoutPipe.fileHandleForReading.readabilityHandler = nil
             self.stderrPipe.fileHandleForReading.readabilityHandler = nil
+            self.failAllPending(message: "LSP client stopped")
         }
     }
 
@@ -248,10 +251,21 @@ public final class LSPClient {
         }
     }
 
+    // Guardrails so a malfunctioning/hostile server can't grow memory without
+    // bound: a header must arrive within 1 MiB, and a body can't exceed 64 MiB.
+    private static let maxHeaderBytes = 1 << 20
+    private static let maxBodyBytes = 64 << 20
+
     private func takeNextMessage() -> [String: Any]? {
         // Look for the \r\n\r\n header/body separator.
         let separator = Data("\r\n\r\n".utf8)
-        guard let sepRange = receiveBuffer.range(of: separator) else { return nil }
+        guard let sepRange = receiveBuffer.range(of: separator) else {
+            if receiveBuffer.count > Self.maxHeaderBytes {
+                NSLog("[Sourcepad] LSP \(serverID): header exceeded \(Self.maxHeaderBytes) bytes; dropping buffer")
+                receiveBuffer.removeAll(keepingCapacity: false)
+            }
+            return nil
+        }
 
         let headerData = receiveBuffer.subdata(in: 0..<sepRange.lowerBound)
         guard let headerString = String(data: headerData, encoding: .utf8) else {
@@ -267,7 +281,8 @@ public final class LSPClient {
                 contentLength = Int(parts[1]) ?? -1
             }
         }
-        guard contentLength >= 0 else {
+        guard contentLength >= 0, contentLength <= Self.maxBodyBytes else {
+            NSLog("[Sourcepad] LSP \(serverID): invalid/oversized Content-Length \(contentLength); dropping frame")
             receiveBuffer.removeSubrange(0..<sepRange.upperBound)
             return nil
         }
@@ -281,6 +296,17 @@ public final class LSPClient {
             return nil
         }
         return obj
+    }
+
+    /// Fail and clear every pending request. Must be called on `queue`.
+    private func failAllPending(message: String) {
+        guard !pendingResponses.isEmpty else { return }
+        let pending = pendingResponses
+        pendingResponses.removeAll()
+        let error = LSPError(code: -32099, message: message)
+        for (_, callback) in pending {
+            DispatchQueue.main.async { callback(.failure(error)) }
+        }
     }
 
     private func handleMessage(_ msg: [String: Any]) {

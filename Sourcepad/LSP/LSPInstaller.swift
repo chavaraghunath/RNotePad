@@ -81,9 +81,16 @@ public final class LSPInstaller {
         proc.standardOutput = outPipe
         proc.standardError = errPipe
 
+        // Cap retained output so a chatty installer can't grow memory/UI without
+        // bound; keep the tail (most recent + the exit line).
+        let maxChars = 100_000
         let append: (String) -> Void = { text in
             DispatchQueue.main.async {
                 textView.string.append(text)
+                if textView.string.count > maxChars {
+                    textView.string = "…[earlier output trimmed]…\n"
+                        + String(textView.string.suffix(maxChars / 2))
+                }
                 textView.scrollToEndOfDocument(nil)
             }
         }
@@ -97,8 +104,15 @@ public final class LSPInstaller {
             if chunk.isEmpty { handle.readabilityHandler = nil; return }
             if let s = String(data: chunk, encoding: .utf8) { append(s) }
         }
-        proc.terminationHandler = { p in
+        proc.terminationHandler = { [weak self] p in
+            // Make sure no readers linger past exit.
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            errPipe.fileHandleForReading.readabilityHandler = nil
             append("\n[exit \(p.terminationStatus)]\n")
+            // If the install didn't succeed, allow a retry on a later file open.
+            if p.terminationStatus != 0 {
+                DispatchQueue.main.async { self?.promptedThisSession.remove(spec.languageId) }
+            }
         }
         do {
             try proc.run()

@@ -129,6 +129,17 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: "Sourcepad.showHiddenFilesInSidebar"); notify() }
     }
 
+    // MARK: - Agents
+
+    /// When true (default), agent CLIs run inside their sandbox (e.g. Codex's
+    /// `workspace-write`, confined to the working directory). When false, agents
+    /// run with full disk access (Codex `danger-full-access`) — more capable but
+    /// unsandboxed. Only affects "Auto" runs; Ask/Read-only stay restricted.
+    public var agentSandboxEnabled: Bool {
+        get { defaults.object(forKey: "Sourcepad.agentSandboxEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "Sourcepad.agentSandboxEnabled"); notify() }
+    }
+
     // MARK: - Workspace (Phase 2)
 
     /// Stable id of the active workspace. nil = pick whichever exists first

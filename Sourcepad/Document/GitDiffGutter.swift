@@ -120,11 +120,14 @@ public final class GitDiffGutter {
         task.arguments = args
         let pipe = Pipe()
         task.standardOutput = pipe
-        task.standardError  = Pipe()  // discard
+        task.standardError  = FileHandle.nullDevice  // discard without a pipe buffer
         do { try task.run() } catch { return nil }
+        // Drain stdout to EOF BEFORE waiting: `git show HEAD:<file>` can emit more
+        // than the 64 KB pipe buffer, which would block git (and deadlock a
+        // wait-then-read) until the pipe is read.
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
         guard task.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         return String(data: data, encoding: .utf8)
     }
 }
