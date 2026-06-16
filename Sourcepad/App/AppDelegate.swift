@@ -5,6 +5,12 @@ import AppKit
 
 public final class AppDelegate: NSObject, NSApplicationDelegate {
 
+    /// True once the user has committed to quitting (Cmd-Q past its
+    /// confirmations). Lets `windowWillClose` tell "user closed the last file"
+    /// (→ keep a blank window, VSCode-style) apart from "app is quitting"
+    /// (→ let every window close).
+    public static private(set) var isTerminating = false
+
     public func applicationDidFinishLaunching(_ notification: Notification) {
         DebugLog.log("==== launch ====")
         NSWindow.allowsAutomaticWindowTabbing = true
@@ -140,6 +146,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             if alert.runModal() != .alertFirstButtonReturn { return .terminateCancel }
         }
 
+        // From here we're committed to quitting unless the save review is
+        // cancelled — so closing windows below should NOT spawn a blank one.
+        AppDelegate.isTerminating = true
+
         // 2) Preserve the standard unsaved-document review (Save / Don't Save /
         //    Cancel). Defining this method overrides NSApplication's default,
         //    so we re-run the document controller's review ourselves.
@@ -153,6 +163,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func documentController(_ controller: NSDocumentController,
                                           didReviewAll allClosed: Bool,
                                           contextInfo: UnsafeMutableRawPointer?) {
+        // User cancelled the Save dialog — we're staying. Clear the flag so the
+        // blank-window behaviour works again.
+        if !allClosed { AppDelegate.isTerminating = false }
         NSApp.reply(toApplicationShouldTerminate: allClosed)
     }
 

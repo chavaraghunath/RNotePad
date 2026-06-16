@@ -54,6 +54,22 @@ public final class EditorWindowController: NSWindowController,
         rootContentViewController?.terminalPanel.terminateAll()
         // Cancel any in-flight agent turn.
         rootContentViewController?.agentPanel.shutdown()
+
+        // VSCode-style: closing the last file shouldn't leave the app running
+        // window-less (which reads as "the app closed"). Re-open a blank
+        // untitled document so an empty editor window stays put. Skipped when
+        // the app is actually quitting (Cmd-Q) so it can shut down cleanly.
+        guard !AppDelegate.isTerminating else { return }
+        DispatchQueue.main.async {
+            guard !AppDelegate.isTerminating,
+                  NSDocumentController.shared.documents.isEmpty,
+                  let doc = try? NSDocumentController.shared.openUntitledDocumentAndDisplay(true)
+            else { return }
+            for wc in doc.windowControllers {
+                wc.showWindow(nil)
+                wc.window?.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     // MARK: - Auto-pair monitor
