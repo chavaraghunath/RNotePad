@@ -366,6 +366,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private var toolCards: [String: AgentToolCard] = [:]
     private var selectedCLIID: String?
     private var emptyLabel: NSTextField?
+    private var cliChangeObserver: NSObjectProtocol?
     // High-risk actions flagged by the policy engine during the current turn,
     // surfaced as a governance summary when the turn finishes.
     private var turnFlaggedActions: [(title: String, reason: String)] = []
@@ -390,6 +391,14 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         refreshStatus()
         updateEmptyState()
         refreshContextBar()
+        cliChangeObserver = NotificationCenter.default.addObserver(
+            forName: .sourcepadAgentCLIsChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.rebuildCLIPopup()
+        }
+    }
+
+    deinit {
+        if let cliChangeObserver { NotificationCenter.default.removeObserver(cliChangeObserver) }
     }
 
     public override func viewDidAppear() {
@@ -617,6 +626,11 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         let previous = selectedCLIID
         cliPopup.removeAllItems()
         for cli in clis { cliPopup.addItem(withTitle: cli.displayName); cliPopup.lastItem?.representedObject = cli.id }
+        // A trailing entry to open the CLI manager (add/remove CLIs by command).
+        cliPopup.menu?.addItem(.separator())
+        let manage = NSMenuItem(title: "Manage CLIs…", action: nil, keyEquivalent: "")
+        manage.representedObject = "__manage__"
+        cliPopup.menu?.addItem(manage)
         if let prev = previous, let idx = clis.firstIndex(where: { $0.id == prev }) {
             cliPopup.selectItem(at: idx)
             selectedCLIID = prev
@@ -652,6 +666,16 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     // MARK: - Actions
 
     @objc private func cliChanged() {
+        // The trailing "Manage CLIs…" entry opens the manager and restores the
+        // previous selection rather than changing the active CLI.
+        if (cliPopup.selectedItem?.representedObject as? String) == "__manage__" {
+            AgentCLIManagerWindowController.shared.show()
+            if let id = selectedCLIID,
+               let idx = (0..<cliPopup.numberOfItems).first(where: { (cliPopup.item(at: $0)?.representedObject as? String) == id }) {
+                cliPopup.selectItem(at: idx)
+            }
+            return
+        }
         selectedCLIID = cliPopup.selectedItem?.representedObject as? String
         rebuildModelPopup()
         if let controller, let id = selectedCLIID {

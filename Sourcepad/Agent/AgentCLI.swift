@@ -82,24 +82,41 @@ public final class AgentRegistry {
 
     public static let shared = AgentRegistry()
 
-    /// All adapters Sourcepad knows how to drive, in display order.
-    public let allCLIs: [AgentCLI]
+    /// Built-in adapters Sourcepad ships with, in display order.
+    private let builtInCLIs: [AgentCLI] = [
+        ClaudeAgentCLI(),
+        CodexAgentCLI(),
+        OpencodeAgentCLI(),
+        // Spec-driven adapters — no bespoke Swift per CLI. Built-in specs for
+        // gemini + agy; user-added CLIs are appended from CLISpecStore.
+        ConfigurableAgentCLI(spec: .gemini),
+        ConfigurableAgentCLI(spec: .agy),
+        // CursorAgentCLI() — deferred until it runs cleanly (dumps JS on --help).
+    ]
+
+    /// All adapters (built-in + user-added), in display order.
+    public private(set) var allCLIs: [AgentCLI]
 
     private let queue = DispatchQueue(label: "sourcepad.agent.registry", qos: .utility)
     private var modelCache: [String: [AgentModel]] = [:]
     private var availabilityCache: [String: Bool] = [:]
 
     private init() {
-        self.allCLIs = [
-            ClaudeAgentCLI(),
-            CodexAgentCLI(),
-            OpencodeAgentCLI(),
-            // Spec-driven adapters — no bespoke Swift per CLI. Built-in specs
-            // for gemini + agy; user-added CLIs join here in Phase 6b-2.
-            ConfigurableAgentCLI(spec: .gemini),
-            ConfigurableAgentCLI(spec: .agy),
-            // CursorAgentCLI() — deferred until it runs cleanly (dumps JS on --help).
-        ]
+        self.allCLIs = builtInCLIs
+        reloadCustomCLIs()
+    }
+
+    /// Rebuild `allCLIs` = built-ins + user specs from CLISpecStore (ids that
+    /// collide with a built-in are ignored). Clears probe caches so the new set
+    /// is re-discovered on the next `warmUp`. Call after the user adds/removes a CLI.
+    public func reloadCustomCLIs() {
+        let builtInIDs = Set(builtInCLIs.map { $0.id })
+        let custom = CLISpecStore.shared.load()
+            .filter { !builtInIDs.contains($0.id) }
+            .map { ConfigurableAgentCLI(spec: $0) as AgentCLI }
+        allCLIs = builtInCLIs + custom
+        availabilityCache.removeAll()
+        modelCache.removeAll()
     }
 
     public func cli(withID id: String) -> AgentCLI? {
