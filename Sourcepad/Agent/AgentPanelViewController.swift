@@ -127,10 +127,13 @@ final class AgentContextBar: NSView {
 final class AgentChangesCard: NSView {
     private let diff: String
     private let revert: () -> Bool
+    /// Invoked when the user clicks "Verify" to run the project's build/test.
+    var onVerify: (() -> Void)?
     private let card = NSView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let reviewButton = NSButton()
     private let revertButton = NSButton()
+    private let verifyButton = NSButton()
 
     init(diff: String, revert: @escaping () -> Bool) {
         self.diff = diff
@@ -155,9 +158,10 @@ final class AgentChangesCard: NSView {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         configure(reviewButton, title: "Review diff", action: #selector(review))
+        configure(verifyButton, title: "Verify", action: #selector(doVerify))
         configure(revertButton, title: "Revert", action: #selector(doRevert))
 
-        let buttons = NSStackView(views: [reviewButton, revertButton])
+        let buttons = NSStackView(views: [reviewButton, verifyButton, revertButton])
         buttons.orientation = .horizontal
         buttons.spacing = 6
         buttons.translatesAutoresizingMaskIntoConstraints = false
@@ -206,6 +210,11 @@ final class AgentChangesCard: NSView {
         alert.accessoryView = scroll
         alert.addButton(withTitle: "Done")
         if let w = window { alert.beginSheetModal(for: w) { _ in } } else { alert.runModal() }
+    }
+
+    @objc private func doVerify() {
+        verifyButton.isEnabled = false
+        onVerify?()
     }
 
     @objc private func doRevert() {
@@ -367,6 +376,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private var selectedCLIID: String?
     private var emptyLabel: NSTextField?
     private var cliChangeObserver: NSObjectProtocol?
+    private var verifyRunner: VerifyRunner?
     // High-risk actions flagged by the policy engine during the current turn,
     // surfaced as a governance summary when the turn finishes.
     private var turnFlaggedActions: [(title: String, reason: String)] = []
@@ -1010,7 +1020,67 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     }
 
     public func conversation(_ c: AgentConversationController, didChangeFilesWithDiff diff: String, revert: @escaping () -> Bool) {
-        addArrangedRow(AgentChangesCard(diff: diff, revert: revert))
+        let card = AgentChangesCard(diff: diff, revert: revert)
+        card.onVerify = { [weak self] in self?.runVerify() }
+        addArrangedRow(card)
+    }
+
+    // MARK: - Verify (Plan → Act → Verify)
+
+    /// Detect the workspace's build/test/lint plan, run it, and surface results.
+    /// On failure the verify card offers to feed the output back to the agent.
+    private func runVerify() {
+        let cwd = controller?.workingDirectory
+            ?? workingDirectoryProvider?()
+            ?? FileManager.default.homeDirectoryForCurrentUser.path
+        let plan = VerifyDetector.detect(workspaceRoot: cwd)
+        guard !plan.isEmpty else {
+            appendBubble(role: .system, text: "No verify command detected for this workspace (looked for package.json, Cargo.toml, go.mod, Package.swift, Makefile, …).")
+            return
+        }
+        let card = AgentVerifyCard(plan: plan)
+        card.onFix = { [weak self] failed in self?.sendFixRequest(for: failed) }
+        addArrangedRow(card)
+
+        let runner = VerifyRunner(plan: plan, workingDirectory: cwd)
+        verifyRunner = runner
+        if let first = plan.steps.first { card.markRunning(first) }
+        var index = 0
+        runner.run(onStep: { [weak card, weak self] result in
+            card?.setResult(result)
+            index += 1
+            if result.passed, index < plan.steps.count {
+                card?.markRunning(plan.steps[index])
+            }
+            self?.scrollToBottom()
+        }, onFinish: { [weak card, weak self] passed, _ in
+            card?.finish(allPassed: passed)
+            self?.verifyRunner = nil
+            self?.scrollToBottom()
+        })
+    }
+
+    /// Start a turn asking the agent to fix a failing verification step, seeding
+    /// it with the command and its output.
+    private func sendFixRequest(for failed: VerifyRunner.StepResult) {
+        guard let controller, !controller.isStreaming else { return }
+        if controller.isOverBudget {
+            appendBubble(role: .system, text: "Budget reached. Raise or clear the budget to continue.")
+            return
+        }
+        let prompt = """
+        The verification step "\(failed.step.label)" (`\(failed.step.command)`) failed (exit \(failed.exitCode)). Investigate and fix the root cause, then we'll re-verify. Output:
+
+        ```
+        \(String(failed.output.suffix(4000)))
+        ```
+        """
+        appendBubble(role: .user, text: "Fix the failing \(failed.step.label) step")
+        streamingBubble = nil
+        turnFlaggedActions.removeAll()
+        statusLabel.stringValue = "Thinking…"
+        sendButton.isEnabled = false
+        controller.send(prompt, editorContext: currentEditorContext())
     }
 
     public func conversation(_ c: AgentConversationController, turnDidFinish error: String?) {
