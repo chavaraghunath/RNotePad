@@ -66,8 +66,8 @@ public enum MLXModelManager {
     public static func pull(modelID: String,
                             progress: @escaping (String) -> Void,
                             completion: @escaping (Bool) -> Void) {
-        guard let hf = huggingfaceCLI() else {
-            DispatchQueue.main.async { progress("huggingface-cli not found (install MLX first)."); completion(false) }
+        guard let hf = downloaderCLI() else {
+            DispatchQueue.main.async { progress("Hugging Face CLI not found (install MLX first)."); completion(false) }
             return
         }
         DispatchQueue.global(qos: .userInitiated).async {
@@ -99,9 +99,15 @@ public enum MLXModelManager {
         try? FileManager.default.removeItem(at: cacheHubDir.appendingPathComponent(cacheDirName(for: modelID)))
     }
 
-    private static func huggingfaceCLI() -> URL? {
-        let venv = MLXEnvironment.venvDir.appendingPathComponent("bin/huggingface-cli")
-        if FileManager.default.isExecutableFile(atPath: venv.path) { return venv }
-        return AgentExecutable.locate("huggingface-cli")
+    /// The Hugging Face download CLI: `hf` (huggingface-hub 1.x) is preferred —
+    /// the old `huggingface-cli` is deprecated and no longer functions in 1.x.
+    /// Both accept `download <model-id>`. Prefers the managed venv's copy.
+    private static func downloaderCLI() -> URL? {
+        for name in ["hf", "huggingface-cli"] {
+            let venv = MLXEnvironment.venvDir.appendingPathComponent("bin/\(name)")
+            if FileManager.default.isExecutableFile(atPath: venv.path) { return venv }
+            if let onPath = AgentExecutable.locate(name) { return onPath }
+        }
+        return nil
     }
 }
