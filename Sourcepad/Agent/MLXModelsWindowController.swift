@@ -65,6 +65,10 @@ public final class MLXModelsWindowController: NSWindowController,
                                 ("downloads", "Downloads", 90), ("action", "", 90)] as [(String, String, CGFloat)] {
             let c = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(idf))
             c.title = title; c.width = w
+            // Make the data columns sortable by clicking the header.
+            if idf != "action" {
+                c.sortDescriptorPrototype = NSSortDescriptor(key: idf, ascending: idf == "name")
+            }
             table.addTableColumn(c)
         }
         table.dataSource = self
@@ -137,17 +141,51 @@ public final class MLXModelsWindowController: NSWindowController,
             guard let self else { return }
             self.models = list
             self.progress.stringValue = list.isEmpty ? "No models found." : ""
+            self.applySort()               // keep the active column sort sticky
             self.table.reloadData()
             // Lazily fetch sizes and fill them in as they arrive.
             for m in list where self.sizes[m.id] == nil {
                 MLXModelRegistry.fetchSize(modelID: m.id) { [weak self] size in
                     guard let self, let size else { return }
                     self.sizes[m.id] = size
-                    if let row = self.models.firstIndex(where: { $0.id == m.id }) {
+                    if self.table.sortDescriptors.first?.key == "size" {
+                        self.applySort(); self.table.reloadData()   // re-sort as sizes arrive
+                    } else if let row = self.models.firstIndex(where: { $0.id == m.id }) {
                         self.table.reloadData(forRowIndexes: [row], columnIndexes: IndexSet(integer: 1))
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Sorting
+
+    public func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+        applySort()
+        table.reloadData()
+    }
+
+    /// Sort `models` by the active column header (Model / Size / Downloads).
+    private func applySort() {
+        guard let sd = table.sortDescriptors.first, let key = sd.key else { return }
+        let asc = sd.ascending
+        switch key {
+        case "name":
+            models.sort {
+                let r = $0.name.localizedCaseInsensitiveCompare($1.name)
+                return asc ? r == .orderedAscending : r == .orderedDescending
+            }
+        case "downloads":
+            models.sort { asc ? $0.downloads < $1.downloads : $0.downloads > $1.downloads }
+        case "size":
+            // Unknown sizes sort last in either direction.
+            models.sort {
+                let a = sizes[$0.id] ?? (asc ? Int64.max : -1)
+                let b = sizes[$1.id] ?? (asc ? Int64.max : -1)
+                return asc ? a < b : a > b
+            }
+        default:
+            break
         }
     }
 
