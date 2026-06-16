@@ -91,6 +91,8 @@ public final class AgentRegistry {
         // gemini + agy; user-added CLIs are appended from CLISpecStore.
         ConfigurableAgentCLI(spec: .gemini),
         ConfigurableAgentCLI(spec: .agy),
+        // Local MLX models — appears only once MLX is installed + a model pulled.
+        MLXAgentCLI(),
         // CursorAgentCLI() — deferred until it runs cleanly (dumps JS on --help).
     ]
 
