@@ -116,6 +116,7 @@ SWIFT_SRCS=(
     "$APP_DIR/Document/DocumentController.swift"
     "$APP_DIR/Document/ExternalChangeWatcher.swift"
     "$APP_DIR/Document/GitDiffGutter.swift"
+    "$APP_DIR/Document/ThreeWayMerge.swift"
     "$APP_DIR/Editor/AutoComplete.swift"
     "$APP_DIR/Editor/EditorWindowController.swift"
     "$APP_DIR/Editor/EditorViewController.swift"

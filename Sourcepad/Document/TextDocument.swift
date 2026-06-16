@@ -61,6 +61,18 @@ public final class TextDocument: NSDocument {
 
         switch event {
         case .modified:
+            // Co-edit guard: if the user has unsaved edits AND the on-disk
+            // version diverged from the last-saved ancestor (e.g. the agent
+            // rewrote the file), offer a 3-way merge instead of clobbering
+            // either side. Takes precedence over auto-reload so the user's
+            // unsaved work is never silently lost.
+            let ancestor = self.contents
+            if let mine = primaryEditorViewController()?.currentText,
+               let theirs = readDiskText(),
+               mine != ancestor, theirs != ancestor, mine != theirs {
+                offerCoEditMerge(ancestor: ancestor, mine: mine, theirs: theirs)
+                return
+            }
             if behavior == .autoReload {
                 reloadFromDisk()
                 return
@@ -105,6 +117,61 @@ public final class TextDocument: NSDocument {
             updateChangeCount(.changeCleared)
         } catch {
             NSLog("[Sourcepad] reload-from-disk failed: \(error)")
+        }
+    }
+
+    /// Read the current on-disk text in the document's encoding.
+    private func readDiskText() -> String? {
+        guard let url = fileURL, let data = try? Data(contentsOf: url) else { return nil }
+        return String(data: data, encoding: encoding) ?? String(data: data, encoding: .utf8)
+    }
+
+    /// The agent/user co-edit guard: reconcile the user's unsaved buffer with an
+    /// external change via a 3-way merge, letting the user apply it or pick a side.
+    private func offerCoEditMerge(ancestor: String, mine: String, theirs: String) {
+        let name = fileURL?.lastPathComponent ?? "This file"
+        guard let merge = ThreeWayMerge.merge(ancestor: ancestor, mine: mine, theirs: theirs) else {
+            // Merge engine unavailable — fall back to the plain reload prompt.
+            let alert = NSAlert()
+            alert.messageText = "File changed on disk"
+            alert.informativeText = "\(name) changed externally while you have unsaved edits. Reload from disk (discarding your edits)?"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Reload")
+            alert.addButton(withTitle: "Keep Editing")
+            if let window = windowControllers.first?.window {
+                alert.beginSheetModal(for: window) { [weak self] r in if r == .alertFirstButtonReturn { self?.reloadFromDisk() } }
+            } else if alert.runModal() == .alertFirstButtonReturn { reloadFromDisk() }
+            return
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "\(name) changed while you have unsaved edits"
+        alert.informativeText = merge.hadConflicts
+            ? "Your edits overlap with the external change. Apply the merge to insert conflict markers you can resolve, or pick a side."
+            : "Your edits and the external change don't overlap and can be merged cleanly."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: merge.hadConflicts ? "Apply Merge (with conflicts)" : "Apply Merge")
+        alert.addButton(withTitle: "Keep Mine")
+        alert.addButton(withTitle: "Take Theirs")
+
+        let handle: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self else { return }
+            switch response {
+            case .alertFirstButtonReturn:
+                // Apply the merged text to the buffer (unsaved, for the user to review/save).
+                self.primaryEditorViewController()?.editorContent.replaceWholeBuffer(with: merge.merged)
+                self.contents = theirs   // the on-disk version is the new baseline
+                self.updateChangeCount(.changeDone)
+            case .alertThirdButtonReturn:
+                self.reloadFromDisk()    // take the agent's version
+            default:
+                self.contents = theirs   // Keep Mine: agent's write becomes the baseline
+            }
+        }
+        if let window = windowControllers.first?.window {
+            alert.beginSheetModal(for: window, completionHandler: handle)
+        } else {
+            handle(alert.runModal())
         }
     }
 
