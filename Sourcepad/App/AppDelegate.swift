@@ -65,6 +65,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     public func applicationWillTerminate(_ notification: Notification) {
         SessionRestore.shared.saveCurrentSession()
+        MLXServer.shared.shutdown()   // stop any running local model server
     }
 
     public func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {

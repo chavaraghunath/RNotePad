@@ -35,6 +35,13 @@ public enum MLXEnvironment {
         return FileManager.default.isExecutableFile(atPath: venv.path) ? venv : nil
     }
 
+    /// `mlx_lm.server` to use (existing on PATH first, else the managed venv's).
+    public static func serverBinary() -> URL? {
+        if let onPath = AgentExecutable.locate("mlx_lm.server") { return onPath }
+        let venv = venvDir.appendingPathComponent("bin/mlx_lm.server")
+        return FileManager.default.isExecutableFile(atPath: venv.path) ? venv : nil
+    }
+
     /// The python used for management tasks (downloads). Prefers the venv's.
     public static func pythonBinary() -> URL? {
         let venvPy = venvDir.appendingPathComponent("bin/python")
