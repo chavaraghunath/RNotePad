@@ -34,6 +34,10 @@
     <string>NSApplication</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Sourcepad uses Apple Events to open files passed via 'open' / Finder.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Sourcepad uses the microphone for voice dictation into the agent chat.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Sourcepad transcribes your speech on-device to type into the agent chat.</string>
     <key>NSSupportsAutomaticTermination</key>
     <true/>
     <key>NSSupportsSuddenTermination</key>

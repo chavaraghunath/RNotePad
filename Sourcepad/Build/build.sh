@@ -215,6 +215,8 @@ swiftc "${SWIFT_SRCS[@]}" \
     -framework MetalKit \
     -framework Metal \
     -framework ImageIO \
+    -framework Speech \
+    -framework AVFoundation \
     -Xlinker "$BUILD_DIR/SciTextView.o" \
     -Xlinker "$BUILD_DIR/KeywordSetsGenerated.o" \
     $(printf -- '-Xlinker %s ' "${TS_OBJS[@]}") \

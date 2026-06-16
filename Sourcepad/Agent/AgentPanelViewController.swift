@@ -363,6 +363,11 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private let input = AgentInputTextView()
     private let inputScroll = NSScrollView()
     private let sendButton = NSButton()
+    private let micButton = NSButton()
+
+    // Voice dictation (default backend: Apple Speech, on-device).
+    private let dictation: VoiceDictation = AppleSpeechDictation()
+    private var dictationPrefix = ""
 
     // Live editor-context preview (active file / selection / @-mentions).
     private let contextBar = AgentContextBar()
@@ -614,6 +619,15 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         sendButton.action = #selector(submit)
         bar.addSubview(sendButton)
 
+        micButton.translatesAutoresizingMaskIntoConstraints = false
+        micButton.bezelStyle = .texturedRounded
+        micButton.image = NSImage(systemSymbolName: "mic", accessibilityDescription: "Dictate")
+        micButton.imagePosition = .imageOnly
+        micButton.toolTip = "Dictate (voice input)"
+        micButton.target = self
+        micButton.action = #selector(toggleDictation)
+        bar.addSubview(micButton)
+
         let divider = NSBox(); divider.boxType = .separator
         divider.translatesAutoresizingMaskIntoConstraints = false
         bar.addSubview(divider)
@@ -643,7 +657,11 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             inputScroll.topAnchor.constraint(equalTo: contextBar.bottomAnchor, constant: 8),
             inputScroll.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -8),
 
-            sendButton.leadingAnchor.constraint(equalTo: inputScroll.trailingAnchor, constant: 6),
+            micButton.leadingAnchor.constraint(equalTo: inputScroll.trailingAnchor, constant: 6),
+            micButton.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -8),
+            micButton.widthAnchor.constraint(equalToConstant: 28),
+
+            sendButton.leadingAnchor.constraint(equalTo: micButton.trailingAnchor, constant: 6),
             sendButton.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -8),
             sendButton.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -8),
             sendButton.widthAnchor.constraint(equalToConstant: 56),
@@ -840,6 +858,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     }
 
     @objc private func submit() {
+        if dictation.isRunning { dictation.stop(); setMicRecording(false) }
         let text = input.string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         guard ensureConversation() else {
@@ -867,6 +886,50 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         refreshContextBar()
     }
 
+    // MARK: - Voice dictation
+
+    @objc private func toggleDictation() {
+        if dictation.isRunning {
+            dictation.stop()
+            setMicRecording(false)
+            focusInput()
+            return
+        }
+        AppleSpeechDictation.requestAuthorization { [weak self] granted in
+            guard let self else { return }
+            guard granted else {
+                self.appendBubble(role: .system, text: "Microphone / speech-recognition permission is needed for voice input. Enable it in System Settings → Privacy.")
+                return
+            }
+            self.startDictation()
+        }
+    }
+
+    private func startDictation() {
+        // Append to whatever is already typed (with a separating space).
+        let existing = input.string
+        dictationPrefix = existing.isEmpty || existing.hasSuffix(" ") ? existing : existing + " "
+        setMicRecording(true)
+        dictation.start(onText: { [weak self] text in
+            guard let self else { return }
+            self.input.string = self.dictationPrefix + text
+            self.inputHeight.constant = min(150, max(34, self.input.contentHeight))
+            self.refreshContextBar()
+        }, onError: { [weak self] msg in
+            guard let self else { return }
+            self.dictation.stop()
+            self.setMicRecording(false)
+            self.appendBubble(role: .system, text: "Dictation stopped: \(msg)")
+        })
+    }
+
+    private func setMicRecording(_ on: Bool) {
+        micButton.image = NSImage(systemSymbolName: on ? "mic.fill" : "mic",
+                                  accessibilityDescription: on ? "Stop dictation" : "Dictate")
+        micButton.contentTintColor = on ? .systemRed : nil
+        micButton.toolTip = on ? "Stop dictation" : "Dictate (voice input)"
+    }
+
     // MARK: - Conversation lifecycle
 
     @discardableResult
@@ -891,6 +954,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     /// Cancel any in-flight turn. Called when the window closes.
     public func shutdown() {
         controller?.cancel()
+        if dictation.isRunning { dictation.stop() }
     }
 
     // MARK: - Editor context
