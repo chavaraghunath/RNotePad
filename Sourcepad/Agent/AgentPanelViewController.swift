@@ -681,7 +681,8 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private func populatePermissions() {
         permPopup.removeAllItems()
         permPopup.addItems(withTitles: ["Plan", "Auto"])
-        permPopup.selectItem(withTitle: "Plan")   // safe default until Phase 3 approvals
+        // Honor the user's default permission (Settings ▸ Agents); Plan = safe.
+        permPopup.selectItem(withTitle: Preferences.shared.agentDefaultPermission == "auto" ? "Auto" : "Plan")
         permPopup.toolTip = "Plan = read-only · Auto = let the agent edit/run freely"
     }
 

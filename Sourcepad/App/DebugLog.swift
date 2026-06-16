@@ -8,6 +8,8 @@ enum DebugLog {
     static let path = "/tmp/sourcepad.log"
 
     static func log(_ message: String, file: String = #file, line: Int = #line) {
+        // Respect the privacy setting (Settings ▸ Privacy). Default on.
+        guard UserDefaults.standard.object(forKey: "Sourcepad.debugLoggingEnabled") as? Bool ?? true else { return }
         let ts = ISO8601DateFormatter().string(from: Date())
         let file = (file as NSString).lastPathComponent
         let entry = "\(ts) \(file):\(line)  \(message)\n"

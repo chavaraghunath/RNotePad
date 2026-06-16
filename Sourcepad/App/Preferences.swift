@@ -148,6 +148,19 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: "Sourcepad.mcpAutoSyncEnabled"); notify() }
     }
 
+    /// Default permission posture for a new agent conversation: "readOnly" (Plan)
+    /// or "auto". Defaults to the safe read-only mode.
+    public var agentDefaultPermission: String {
+        get { defaults.string(forKey: "Sourcepad.agentDefaultPermission") ?? "readOnly" }
+        set { defaults.set(newValue, forKey: "Sourcepad.agentDefaultPermission"); notify() }
+    }
+
+    /// When true (default), Sourcepad writes its debug log to /tmp/sourcepad.log.
+    public var debugLoggingEnabled: Bool {
+        get { defaults.object(forKey: "Sourcepad.debugLoggingEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "Sourcepad.debugLoggingEnabled"); notify() }
+    }
+
     // MARK: - Workspace (Phase 2)
 
     /// Stable id of the active workspace. nil = pick whichever exists first
