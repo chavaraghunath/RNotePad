@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
-// Sourcepad — the "MLX Models" pane (Docker-Models style).
+// Sourcepad — the "MLX Models" surface (Docker-Models style).
 //
 // Browse the live mlx-community registry (Hugging Face Hub API), see download
 // size + popularity, and Pull / Remove models. If the MLX runtime isn't present,
 // a one-time "Install MLX runtime" step creates the managed venv. Pulled models
 // then appear under the "MLX (local)" agent in the panel's picker.
+//
+// The functional surface lives in `MLXModelsViewController`, which is hosted both
+// by the standalone `MLXModelsWindowController` (opened from the agent popup) and,
+// as a pane, inside the unified Settings window. Sheets attach to `view.window`,
+// so the same controller behaves correctly in either host.
 
 import AppKit
 
-public final class MLXModelsWindowController: NSWindowController,
+public final class MLXModelsViewController: NSViewController,
     NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
-
-    public static let shared = MLXModelsWindowController()
 
     private let statusLabel = NSTextField(labelWithString: "")
     private let installButton = NSButton()
@@ -25,29 +28,18 @@ public final class MLXModelsWindowController: NSWindowController,
     private var pulling = Set<String>()
     private var pullProgress: [String: String] = [:]   // modelID -> latest progress line
 
-    public init() {
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
-                           styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        win.title = "MLX Models"
-        win.minSize = NSSize(width: 520, height: 360)
-        super.init(window: win)
-        build()
-    }
-    public required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+    /// Every download considered in-flight from this view's perspective: the ones
+    /// this instance started (`pulling`) unioned with the app-wide truth. Using the
+    /// union means a download begun in one surface (standalone window or Settings
+    /// pane) shows as "Pulling…" in the other, and never gets stuck — the app-wide
+    /// set is the source of truth and clears itself when the download ends.
+    private var inFlight: Set<String> { pulling.union(MLXModelManager.activeDownloads) }
 
-    public func show() {
-        refreshInstalledState()
-        showWindow(nil)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        if MLXEnvironment.isInstalled { loadRegistry(query: nil) }
-    }
+    // MARK: - View
 
-    // MARK: - Build
-
-    private func build() {
-        guard let content = window?.contentView else { return }
+    public override func loadView() {
+        let content = NSView()
+        content.translatesAutoresizingMaskIntoConstraints = false
 
         statusLabel.font = .systemFont(ofSize: 11)
         statusLabel.textColor = .secondaryLabelColor
@@ -89,15 +81,11 @@ public final class MLXModelsWindowController: NSWindowController,
         progress.usesSingleLineMode = false
         progress.translatesAutoresizingMaskIntoConstraints = false
 
-        let done = NSButton(title: "Done", target: self, action: #selector(closeWindow))
-        done.bezelStyle = .rounded
-        done.keyEquivalent = "\r"
-        done.translatesAutoresizingMaskIntoConstraints = false
         let refresh = NSButton(title: "Refresh", target: self, action: #selector(refreshTapped))
         refresh.bezelStyle = .rounded
         refresh.translatesAutoresizingMaskIntoConstraints = false
 
-        [statusLabel, installButton, search, scroll, progress, done, refresh].forEach { content.addSubview($0) }
+        [statusLabel, installButton, search, scroll, progress, refresh].forEach { content.addSubview($0) }
 
         NSLayoutConstraint.activate([
             statusLabel.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
@@ -120,9 +108,14 @@ public final class MLXModelsWindowController: NSWindowController,
             refresh.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
             refresh.topAnchor.constraint(equalTo: progress.bottomAnchor, constant: 8),
             refresh.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
-            done.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-            done.centerYAnchor.constraint(equalTo: refresh.centerYAnchor),
         ])
+        self.view = content
+    }
+
+    public override func viewWillAppear() {
+        super.viewWillAppear()
+        refreshInstalledState()
+        if MLXEnvironment.isInstalled { loadRegistry(query: search.stringValue.isEmpty ? nil : search.stringValue) }
     }
 
     // MARK: - State
@@ -139,11 +132,11 @@ public final class MLXModelsWindowController: NSWindowController,
     }
 
     private func loadRegistry(query: String?) {
-        if pulling.isEmpty { progress.stringValue = "Loading models…" }
+        if inFlight.isEmpty { progress.stringValue = "Loading models…" }
         MLXModelRegistry.search(query: query) { [weak self] list in
             guard let self else { return }
             self.models = list
-            if self.pulling.isEmpty {
+            if self.inFlight.isEmpty {
                 self.progress.stringValue = list.isEmpty ? "No models found." : ""
             } else {
                 self.renderProgress()      // keep in-flight downloads visible across Refresh
@@ -200,11 +193,12 @@ public final class MLXModelsWindowController: NSWindowController,
 
     /// Render every in-flight download (not just the last one to report a line),
     /// so two or more concurrent pulls are all visible. Driven off
-    /// `pulling`/`pullProgress`, which persist across registry reloads — so the
+    /// `inFlight`/`pullProgress`, which persist across registry reloads — so the
     /// status survives a Refresh and stays put until each download completes.
     private func renderProgress() {
-        guard !pulling.isEmpty else { return }
-        progress.stringValue = pulling.sorted().map { id in
+        let active = inFlight
+        guard !active.isEmpty else { return }
+        progress.stringValue = active.sorted().map { id in
             "\((id as NSString).lastPathComponent) — \(pullProgress[id] ?? "starting…")"
         }.joined(separator: "\n")
     }
@@ -229,7 +223,7 @@ public final class MLXModelsWindowController: NSWindowController,
             b.bezelStyle = .rounded
             b.font = .systemFont(ofSize: 11)
             b.target = self
-            if pulling.contains(m.id) {
+            if inFlight.contains(m.id) {
                 b.title = "Pulling…"; b.isEnabled = false
             } else if installed.contains(m.id) {
                 b.title = "Remove"; b.action = #selector(removeRow(_:))
@@ -263,7 +257,7 @@ public final class MLXModelsWindowController: NSWindowController,
         alert.informativeText = "This downloads the model\(sizeText) to your local cache."
         alert.addButton(withTitle: "Download")
         alert.addButton(withTitle: "Cancel")
-        guard let win = window else { return }
+        guard let win = view.window else { return }
         alert.beginSheetModal(for: win) { [weak self] r in
             guard r == .alertFirstButtonReturn, let self else { return }
             self.pulling.insert(id)
@@ -278,7 +272,7 @@ public final class MLXModelsWindowController: NSWindowController,
                 guard let self else { return }
                 self.pulling.remove(id)
                 self.pullProgress[id] = nil
-                if self.pulling.isEmpty {
+                if self.inFlight.isEmpty {
                     self.progress.stringValue = ok ? "Installed \((id as NSString).lastPathComponent)." : "Download failed."
                 } else {
                     self.renderProgress()   // other downloads are still running
@@ -296,7 +290,7 @@ public final class MLXModelsWindowController: NSWindowController,
         alert.informativeText = "Deletes the downloaded model from your local cache."
         alert.addButton(withTitle: "Remove")
         alert.addButton(withTitle: "Cancel")
-        guard let win = window else { return }
+        guard let win = view.window else { return }
         alert.beginSheetModal(for: win) { [weak self] r in
             guard r == .alertFirstButtonReturn, let self else { return }
             MLXModelManager.remove(modelID: id)
@@ -330,12 +324,36 @@ public final class MLXModelsWindowController: NSWindowController,
         loadRegistry(query: search.stringValue)
     }
 
-    @objc private func closeWindow() { window?.close() }
-
     private func notifyChanged() {
         AgentRegistry.shared.reloadCustomCLIs()
         AgentRegistry.shared.warmUp {
             NotificationCenter.default.post(name: .sourcepadAgentCLIsChanged, object: nil)
         }
+    }
+}
+
+// MARK: - Standalone window
+
+public final class MLXModelsWindowController: NSWindowController {
+
+    public static let shared = MLXModelsWindowController()
+
+    public init() {
+        let pane = MLXModelsViewController()
+        let win = NSWindow(contentViewController: pane)
+        win.styleMask = [.titled, .closable, .resizable]
+        win.title = "MLX Models"
+        win.setContentSize(NSSize(width: 640, height: 480))
+        win.minSize = NSSize(width: 520, height: 360)
+        win.isReleasedWhenClosed = false
+        super.init(window: win)
+    }
+    public required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    public func show() {
+        showWindow(nil)
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

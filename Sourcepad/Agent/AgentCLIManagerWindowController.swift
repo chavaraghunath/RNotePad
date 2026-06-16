@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
-// Sourcepad — "Manage Agent CLIs" window.
+// Sourcepad — "Manage Agent CLIs" surface.
 //
 // Lists every agent CLI (built-in + user-added) with install status + model
 // count, and lets the user ADD a new one by command name: it runs `<cmd> --help`
 // via CLIProbe, auto-discovers the model list, shows the detected capabilities,
 // and on confirm saves an editable spec — no hardcoding, no recompile.
+//
+// The functional surface lives in `AgentCLIManagerViewController`, hosted both by
+// the standalone `AgentCLIManagerWindowController` and, as a pane, inside the
+// unified Settings window. Sheets attach to `view.window`, so the same controller
+// behaves correctly in either host.
 
 import AppKit
 
@@ -14,10 +19,8 @@ public extension Notification.Name {
     static let sourcepadAgentCLIsChanged = Notification.Name("SourcepadAgentCLIsChanged")
 }
 
-public final class AgentCLIManagerWindowController: NSWindowController,
+public final class AgentCLIManagerViewController: NSViewController,
     NSTableViewDataSource, NSTableViewDelegate {
-
-    public static let shared = AgentCLIManagerWindowController()
 
     private let table = NSTableView()
     private let removeButton = NSButton()
@@ -29,27 +32,10 @@ public final class AgentCLIManagerWindowController: NSWindowController,
         let installed: Bool
     }
 
-    public init() {
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 580, height: 400),
-                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        win.title = "Manage Agent CLIs"
-        super.init(window: win)
-        buildUI()
-    }
-    public required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+    // MARK: - View
 
-    public func show() {
-        reload()
-        showWindow(nil)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    // MARK: - UI
-
-    private func buildUI() {
-        guard let content = window?.contentView else { return }
+    public override func loadView() {
+        let content = NSView()
 
         let cols: [(String, String, CGFloat)] = [
             ("name", "Name", 140), ("command", "Command", 90),
@@ -83,11 +69,8 @@ public final class AgentCLIManagerWindowController: NSWindowController,
         removeButton.isEnabled = false
         let refresh = NSButton(title: "Refresh Models", target: self, action: #selector(refreshModels))
         refresh.bezelStyle = .rounded
-        let done = NSButton(title: "Done", target: self, action: #selector(closeWindow))
-        done.bezelStyle = .rounded
-        done.keyEquivalent = "\r"
 
-        let buttons = NSStackView(views: [add, removeButton, refresh, NSView(), done])
+        let buttons = NSStackView(views: [add, removeButton, refresh, NSView()])
         buttons.orientation = .horizontal
         buttons.spacing = 8
         buttons.translatesAutoresizingMaskIntoConstraints = false
@@ -110,6 +93,12 @@ public final class AgentCLIManagerWindowController: NSWindowController,
             buttons.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
             buttons.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
         ])
+        self.view = content
+    }
+
+    public override func viewWillAppear() {
+        super.viewWillAppear()
+        reload()
     }
 
     // MARK: - Data
@@ -166,7 +155,7 @@ public final class AgentCLIManagerWindowController: NSWindowController,
         alert.accessoryView = field
         alert.addButton(withTitle: "Probe")
         alert.addButton(withTitle: "Cancel")
-        guard let win = window else { return }
+        guard let win = view.window else { return }
         alert.beginSheetModal(for: win) { [weak self] resp in
             guard resp == .alertFirstButtonReturn else { return }
             let command = field.stringValue.trimmingCharacters(in: .whitespaces)
@@ -176,7 +165,7 @@ public final class AgentCLIManagerWindowController: NSWindowController,
     }
 
     private func probeAndConfirm(command: String) {
-        guard let win = window else { return }
+        guard let win = view.window else { return }
         // Probe off the main thread (spawns --help / models subprocesses).
         DispatchQueue.global(qos: .userInitiated).async {
             let draft = CLIProbe.probe(command: command)
@@ -226,13 +215,37 @@ public final class AgentCLIManagerWindowController: NSWindowController,
         }
     }
 
-    @objc private func closeWindow() { window?.close() }
-
     private func warn(on win: NSWindow, _ text: String, _ info: String) {
         let a = NSAlert()
         a.messageText = text
         a.informativeText = info
         a.addButton(withTitle: "OK")
         a.beginSheetModal(for: win) { _ in }
+    }
+}
+
+// MARK: - Standalone window
+
+public final class AgentCLIManagerWindowController: NSWindowController {
+
+    public static let shared = AgentCLIManagerWindowController()
+
+    public init() {
+        let pane = AgentCLIManagerViewController()
+        let win = NSWindow(contentViewController: pane)
+        win.styleMask = [.titled, .closable, .resizable]
+        win.title = "Manage Agent CLIs"
+        win.setContentSize(NSSize(width: 580, height: 400))
+        win.minSize = NSSize(width: 520, height: 320)
+        win.isReleasedWhenClosed = false
+        super.init(window: win)
+    }
+    public required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
+
+    public func show() {
+        showWindow(nil)
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
