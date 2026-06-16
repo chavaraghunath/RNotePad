@@ -61,6 +61,34 @@ public enum MLXModelManager {
         return false
     }
 
+    // MARK: - Active-download tracking (app-wide)
+    //
+    // Lets the app warn before quitting while a pull is still running. Guarded
+    // by a lock because pulls run on a background queue but `isDownloading` is
+    // read from the main thread (e.g. applicationShouldTerminate).
+
+    private static let activeLock = NSLock()
+    private static var _active = Set<String>()
+
+    /// True while any model download is in progress.
+    public static var isDownloading: Bool {
+        activeLock.lock(); defer { activeLock.unlock() }
+        return !_active.isEmpty
+    }
+
+    /// Model ids currently downloading.
+    public static var activeDownloads: [String] {
+        activeLock.lock(); defer { activeLock.unlock() }
+        return _active.sorted()
+    }
+
+    private static func markStart(_ id: String) {
+        activeLock.lock(); _active.insert(id); activeLock.unlock()
+    }
+    private static func markEnd(_ id: String) {
+        activeLock.lock(); _active.remove(id); activeLock.unlock()
+    }
+
     /// Download a model into the cache, streaming progress (main queue);
     /// `completion(success)` on the main queue.
     public static func pull(modelID: String,
@@ -70,6 +98,7 @@ public enum MLXModelManager {
             DispatchQueue.main.async { progress("Hugging Face CLI not found (install MLX first)."); completion(false) }
             return
         }
+        markStart(modelID)
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process()
             p.executableURL = hf
@@ -85,11 +114,13 @@ public enum MLXModelManager {
                 if !s.isEmpty { DispatchQueue.main.async { progress(s) } }
             }
             do { try p.run() } catch {
+                markEnd(modelID)
                 DispatchQueue.main.async { progress("launch failed: \(error.localizedDescription)"); completion(false) }
                 return
             }
             p.waitUntilExit()
             pipe.fileHandleForReading.readabilityHandler = nil
+            markEnd(modelID)
             let ok = p.terminationStatus == 0 && isFullyDownloaded(modelID)
             DispatchQueue.main.async { completion(ok) }
         }

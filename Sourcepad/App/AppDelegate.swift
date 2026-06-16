@@ -125,6 +125,37 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         return false  // Standard macOS behavior — quit explicitly via Cmd-Q.
     }
 
+    public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // 1) Warn if a local model download is still in flight — quitting kills it.
+        if MLXModelManager.isDownloading {
+            let names = MLXModelManager.activeDownloads
+                .map { ($0 as NSString).lastPathComponent }
+                .joined(separator: ", ")
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "A model is still downloading"
+            alert.informativeText = "Quitting now will cancel the in-progress download (\(names)). Quit anyway?"
+            alert.addButton(withTitle: "Quit Anyway")
+            alert.addButton(withTitle: "Keep Downloading")
+            if alert.runModal() != .alertFirstButtonReturn { return .terminateCancel }
+        }
+
+        // 2) Preserve the standard unsaved-document review (Save / Don't Save /
+        //    Cancel). Defining this method overrides NSApplication's default,
+        //    so we re-run the document controller's review ourselves.
+        NSDocumentController.shared.reviewUnsavedDocuments(
+            withAlertTitle: nil, cancellable: true, delegate: self,
+            didReviewAllSelector: #selector(documentController(_:didReviewAll:contextInfo:)),
+            contextInfo: nil)
+        return .terminateLater
+    }
+
+    @objc private func documentController(_ controller: NSDocumentController,
+                                          didReviewAll allClosed: Bool,
+                                          contextInfo: UnsafeMutableRawPointer?) {
+        NSApp.reply(toApplicationShouldTerminate: allClosed)
+    }
+
     // MARK: - Palettes (Phase 3)
     //
     // Live on AppDelegate (not a per-window VC) because palettes are global.

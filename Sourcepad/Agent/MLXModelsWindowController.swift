@@ -23,6 +23,7 @@ public final class MLXModelsWindowController: NSWindowController,
     private var installed = Set<String>()
     private var sizes: [String: Int64] = [:]
     private var pulling = Set<String>()
+    private var pullProgress: [String: String] = [:]   // modelID -> latest progress line
 
     public init() {
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
@@ -83,7 +84,9 @@ public final class MLXModelsWindowController: NSWindowController,
 
         progress.font = .systemFont(ofSize: 10)
         progress.textColor = .secondaryLabelColor
-        progress.lineBreakMode = .byTruncatingMiddle
+        progress.lineBreakMode = .byTruncatingTail
+        progress.maximumNumberOfLines = 4   // show several concurrent downloads at once
+        progress.usesSingleLineMode = false
         progress.translatesAutoresizingMaskIntoConstraints = false
 
         let done = NSButton(title: "Done", target: self, action: #selector(closeWindow))
@@ -136,11 +139,15 @@ public final class MLXModelsWindowController: NSWindowController,
     }
 
     private func loadRegistry(query: String?) {
-        progress.stringValue = "Loading models…"
+        if pulling.isEmpty { progress.stringValue = "Loading models…" }
         MLXModelRegistry.search(query: query) { [weak self] list in
             guard let self else { return }
             self.models = list
-            self.progress.stringValue = list.isEmpty ? "No models found." : ""
+            if self.pulling.isEmpty {
+                self.progress.stringValue = list.isEmpty ? "No models found." : ""
+            } else {
+                self.renderProgress()      // keep in-flight downloads visible across Refresh
+            }
             self.applySort()               // keep the active column sort sticky
             self.table.reloadData()
             // Lazily fetch sizes and fill them in as they arrive.
@@ -187,6 +194,19 @@ public final class MLXModelsWindowController: NSWindowController,
         default:
             break
         }
+    }
+
+    // MARK: - Download status
+
+    /// Render every in-flight download (not just the last one to report a line),
+    /// so two or more concurrent pulls are all visible. Driven off
+    /// `pulling`/`pullProgress`, which persist across registry reloads — so the
+    /// status survives a Refresh and stays put until each download completes.
+    private func renderProgress() {
+        guard !pulling.isEmpty else { return }
+        progress.stringValue = pulling.sorted().map { id in
+            "\((id as NSString).lastPathComponent) — \(pullProgress[id] ?? "starting…")"
+        }.joined(separator: "\n")
     }
 
     // MARK: - Table
@@ -247,13 +267,22 @@ public final class MLXModelsWindowController: NSWindowController,
         alert.beginSheetModal(for: win) { [weak self] r in
             guard r == .alertFirstButtonReturn, let self else { return }
             self.pulling.insert(id)
+            self.pullProgress[id] = "starting…"
+            self.renderProgress()
             self.table.reloadData()
             MLXModelManager.pull(modelID: id, progress: { [weak self] line in
-                self?.progress.stringValue = line
+                guard let self else { return }
+                self.pullProgress[id] = line
+                self.renderProgress()
             }, completion: { [weak self] ok in
                 guard let self else { return }
                 self.pulling.remove(id)
-                self.progress.stringValue = ok ? "Installed \((id as NSString).lastPathComponent)." : "Download failed."
+                self.pullProgress[id] = nil
+                if self.pulling.isEmpty {
+                    self.progress.stringValue = ok ? "Installed \((id as NSString).lastPathComponent)." : "Download failed."
+                } else {
+                    self.renderProgress()   // other downloads are still running
+                }
                 self.refreshInstalledState()
                 self.notifyChanged()
             })
