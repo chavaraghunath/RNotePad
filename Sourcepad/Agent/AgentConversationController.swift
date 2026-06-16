@@ -283,6 +283,12 @@ public final class AgentConversationController {
         return trimmed.count > 48 ? String(trimmed.prefix(48)) + "…" : trimmed
     }
 
+    /// A compact transcript of this conversation for seeding other harnesses
+    /// (e.g. best-of-N comparison runs) with the same context. Nil if empty.
+    public func contextReseed() -> String? {
+        buildReseedTranscript()
+    }
+
     // MARK: - Re-seed transcript (cross-CLI continuity)
 
     /// A compact rendering of the persisted transcript, fed to a fresh session

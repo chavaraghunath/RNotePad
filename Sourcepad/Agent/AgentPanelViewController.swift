@@ -377,6 +377,13 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private var emptyLabel: NSTextField?
     private var cliChangeObserver: NSObjectProtocol?
     private var verifyRunner: VerifyRunner?
+
+    // Best-of-N comparison state.
+    private let compareButton = NSButton()
+    private var compareCards: [String: AgentCompareCard] = [:]
+    private var compareHandles: [AgentTurnHandle] = []
+    private var compareTexts: [String: String] = [:]
+    private var comparePending = 0
     // High-risk actions flagged by the policy engine during the current turn,
     // surfaced as a governance summary when the turn finishes.
     private var turnFlaggedActions: [(title: String, reason: String)] = []
@@ -451,7 +458,15 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         historyButton.target = self
         historyButton.action = #selector(showHistory)
 
-        let row = NSStackView(views: [cliPopup, modelPopup, permPopup, NSView(), historyButton, newButton])
+        compareButton.translatesAutoresizingMaskIntoConstraints = false
+        compareButton.bezelStyle = .texturedRounded
+        compareButton.image = NSImage(systemSymbolName: "square.split.2x1", accessibilityDescription: "Compare (best-of-N)")
+        compareButton.imagePosition = .imageOnly
+        compareButton.toolTip = "Compare this prompt across multiple agents (best-of-N)"
+        compareButton.target = self
+        compareButton.action = #selector(compareTapped)
+
+        let row = NSStackView(views: [cliPopup, modelPopup, permPopup, NSView(), compareButton, historyButton, newButton])
         row.orientation = .horizontal
         row.spacing = 6
         row.alignment = .centerY
@@ -492,6 +507,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             row.topAnchor.constraint(equalTo: header.topAnchor, constant: 6),
             newButton.widthAnchor.constraint(equalToConstant: 26),
             historyButton.widthAnchor.constraint(equalToConstant: 26),
+            compareButton.widthAnchor.constraint(equalToConstant: 26),
 
             statusLabel.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 10),
             statusLabel.topAnchor.constraint(equalTo: row.bottomAnchor, constant: 3),
@@ -1081,6 +1097,130 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         statusLabel.stringValue = "Thinking…"
         sendButton.isEnabled = false
         controller.send(prompt, editorContext: currentEditorContext())
+    }
+
+    // MARK: - Best-of-N comparison
+
+    /// One harness per available CLI, using the active model for the selected
+    /// CLI and each other CLI's first model.
+    private func selectedHarnesses() -> [(cli: AgentCLI, model: AgentModel?)] {
+        registry.availableCLIs().map { cli in
+            let model = (cli.id == selectedCLIID ? selectedModel : nil) ?? registry.models(for: cli.id).first
+            return (cli, model)
+        }
+    }
+
+    @objc private func compareTapped() {
+        let text = input.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { NSSound.beep(); return }
+        guard comparePending == 0 else { return }
+        let harnesses = selectedHarnesses()
+        guard harnesses.count >= 2 else {
+            appendBubble(role: .system, text: "Best-of-N needs at least two installed agents. Add another via Manage CLIs.")
+            return
+        }
+        let names = harnesses.map { $0.cli.displayName }.joined(separator: ", ")
+        let alert = NSAlert()
+        alert.messageText = "Compare across \(harnesses.count) agents?"
+        alert.informativeText = "Runs this prompt read-only on: \(names). You pick the best answer to keep."
+        alert.addButton(withTitle: "Compare")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        runCompare(text: text, harnesses: harnesses)
+    }
+
+    private func runCompare(text: String, harnesses: [(cli: AgentCLI, model: AgentModel?)]) {
+        guard ensureConversation(), let controller else { return }
+        let cwd = controller.workingDirectory
+        let editorContext = currentEditorContext()
+        input.string = ""
+        inputHeight.constant = 34
+        appendBubble(role: .user, text: text)
+
+        let composed = AgentContextProvider.composeAgentPrompt(typed: text, workspaceRoot: cwd, context: editorContext)
+        let reseed = controller.contextReseed()
+
+        compareCards = [:]; compareHandles = []; compareTexts = [:]
+        comparePending = harnesses.count
+        compareButton.isEnabled = false
+        sendButton.isEnabled = false
+        statusLabel.stringValue = "Comparing \(harnesses.count) agents…"
+
+        for (cli, model) in harnesses {
+            let id = cli.id
+            let card = AgentCompareCard(title: "\(cli.displayName) · \(model?.displayName ?? "default")")
+            card.onUse = { [weak self] in self?.useCompareAnswer(harnessID: id, prompt: text, cli: cli, model: model) }
+            compareCards[id] = card
+            compareTexts[id] = ""
+            addArrangedRow(card)
+            // Comparison turns are always read-only, so they run in parallel safely.
+            let req = AgentTurnRequest(prompt: composed, model: model?.id, workingDirectory: cwd,
+                                       nativeSessionID: nil, reseedTranscript: reseed, permission: .readOnly)
+            let handle = cli.startTurn(req) { [weak self] ev in self?.handleCompareEvent(harnessID: id, ev) }
+            compareHandles.append(handle)
+        }
+    }
+
+    private func handleCompareEvent(harnessID id: String, _ ev: AgentEvent) {
+        guard let card = compareCards[id] else { return }
+        switch ev {
+        case .textDelta(let t):
+            compareTexts[id, default: ""] += t
+            card.appendDelta(t)
+            scrollToBottom()
+        case .usage(let u):
+            card.setUsage(input: u.inputTokens, output: u.outputTokens, costUSD: u.costUSD ?? 0)
+        case .turnFinished:
+            card.finish(error: nil); compareDidFinishOne()
+        case .error(let m):
+            card.finish(error: m); compareDidFinishOne()
+        default:
+            break
+        }
+    }
+
+    private func compareDidFinishOne() {
+        comparePending = max(0, comparePending - 1)
+        if comparePending == 0 {
+            compareButton.isEnabled = true
+            sendButton.isEnabled = true
+            statusLabel.stringValue = "Pick the best answer to keep"
+        }
+    }
+
+    /// Adopt a harness's answer: persist the exchange, switch to that harness,
+    /// drop the other comparison cards, and continue the conversation.
+    private func useCompareAnswer(harnessID id: String, prompt: String, cli: AgentCLI, model: AgentModel?) {
+        guard let controller, let store = AgentStore.shared else { return }
+        let chosen = (compareTexts[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        compareHandles.forEach { $0.cancel() }
+        compareHandles = []
+        compareCards.values.forEach { $0.removeFromSuperview() }
+        compareCards = [:]; compareTexts = [:]; comparePending = 0
+
+        store.appendMessage(conversation: controller.conversationID, role: "user", content: prompt, kind: "text")
+        if !chosen.isEmpty {
+            store.appendMessage(conversation: controller.conversationID, role: "assistant", content: chosen, kind: "text")
+        }
+        controller.switchCLI(cli.id, model: model)
+        syncPickers(toCLI: cli.id, model: model)
+
+        appendBubble(role: .assistant, text: chosen.isEmpty ? "_(no output)_" : chosen)
+        compareButton.isEnabled = true
+        sendButton.isEnabled = true
+        statusLabel.stringValue = "Kept \(cli.displayName)'s answer"
+        scrollToBottom()
+    }
+
+    private func syncPickers(toCLI cliID: String, model: AgentModel?) {
+        guard let idx = (0..<cliPopup.numberOfItems).first(where: { (cliPopup.item(at: $0)?.representedObject as? String) == cliID }) else { return }
+        cliPopup.selectItem(at: idx)
+        selectedCLIID = cliID
+        rebuildModelPopup()
+        if let m = model?.id,
+           let midx = (0..<modelPopup.numberOfItems).first(where: { ((modelPopup.item(at: $0)?.representedObject as? AgentModel)?.id) == m }) {
+            modelPopup.selectItem(at: midx)
+        }
     }
 
     public func conversation(_ c: AgentConversationController, turnDidFinish error: String?) {
