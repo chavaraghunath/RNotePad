@@ -25,6 +25,10 @@ public final class AgentProcessRunner: AgentTurnHandle {
 
     /// Called (main queue) for each complete stdout line that parses as JSON.
     private let onLine: ([String: Any]) -> Void
+    /// Called (main queue) for each complete stdout line as a raw string,
+    /// regardless of whether it is JSON. Used by text-output CLIs (e.g. agy)
+    /// that stream a plain-text answer rather than newline-delimited JSON.
+    private let onRawLine: ((String) -> Void)?
     /// Called (main queue) once when the process exits. `code` is the exit
     /// status; `stderr` is whatever the process wrote to stderr.
     private let onExit: (_ code: Int32, _ stderr: String) -> Void
@@ -35,8 +39,10 @@ public final class AgentProcessRunner: AgentTurnHandle {
                 environment: [String: String]? = nil,
                 stdin: String? = nil,
                 onLine: @escaping ([String: Any]) -> Void,
+                onRawLine: ((String) -> Void)? = nil,
                 onExit: @escaping (_ code: Int32, _ stderr: String) -> Void) {
         self.onLine = onLine
+        self.onRawLine = onRawLine
         self.onExit = onExit
 
         process.executableURL = executable
@@ -106,10 +112,17 @@ public final class AgentProcessRunner: AgentTurnHandle {
     }
 
     private func deliver(_ lineData: Data) {
-        guard !lineData.isEmpty,
-              let obj = try? JSONSerialization.jsonObject(with: lineData),
-              let dict = obj as? [String: Any] else { return }
-        DispatchQueue.main.async { [weak self] in self?.onLine(dict) }
+        guard !lineData.isEmpty else { return }
+        // Raw-text consumers see every line as-is.
+        if let onRawLine {
+            let s = String(decoding: lineData, as: UTF8.self)
+            DispatchQueue.main.async { onRawLine(s) }
+        }
+        // JSON consumers see only lines that parse as a JSON object.
+        if let obj = try? JSONSerialization.jsonObject(with: lineData),
+           let dict = obj as? [String: Any] {
+            DispatchQueue.main.async { [weak self] in self?.onLine(dict) }
+        }
     }
 
     private func handleTermination(code: Int32) {

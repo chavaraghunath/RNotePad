@@ -94,6 +94,10 @@ public final class AgentRegistry {
             ClaudeAgentCLI(),
             CodexAgentCLI(),
             OpencodeAgentCLI(),
+            // Spec-driven adapters — no bespoke Swift per CLI. Built-in specs
+            // for gemini + agy; user-added CLIs join here in Phase 6b-2.
+            ConfigurableAgentCLI(spec: .gemini),
+            ConfigurableAgentCLI(spec: .agy),
             // CursorAgentCLI() — deferred until it runs cleanly (dumps JS on --help).
         ]
     }
