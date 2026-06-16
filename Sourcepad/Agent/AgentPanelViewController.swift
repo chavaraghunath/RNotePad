@@ -384,6 +384,20 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private var compareHandles: [AgentTurnHandle] = []
     private var compareTexts: [String: String] = [:]
     private var comparePending = 0
+
+    // Autonomous Plan→Act→Verify→Fix loop (event-driven).
+    private let autoButton = NSButton()
+    private var lastTurnChangedFiles = false
+    private var autoFixIterations = 0
+    private static let autoFixCap = 3
+    private var autoVerifyEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "Sourcepad.agent.autoVerify") }
+        set { UserDefaults.standard.set(newValue, forKey: "Sourcepad.agent.autoVerify") }
+    }
+    private var autoFixEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "Sourcepad.agent.autoFix") }
+        set { UserDefaults.standard.set(newValue, forKey: "Sourcepad.agent.autoFix") }
+    }
     // High-risk actions flagged by the policy engine during the current turn,
     // surfaced as a governance summary when the turn finishes.
     private var turnFlaggedActions: [(title: String, reason: String)] = []
@@ -408,6 +422,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         refreshStatus()
         updateEmptyState()
         refreshContextBar()
+        updateAutoButton()
         cliChangeObserver = NotificationCenter.default.addObserver(
             forName: .sourcepadAgentCLIsChanged, object: nil, queue: .main) { [weak self] _ in
             self?.rebuildCLIPopup()
@@ -466,7 +481,15 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         compareButton.target = self
         compareButton.action = #selector(compareTapped)
 
-        let row = NSStackView(views: [cliPopup, modelPopup, permPopup, NSView(), compareButton, historyButton, newButton])
+        autoButton.translatesAutoresizingMaskIntoConstraints = false
+        autoButton.bezelStyle = .texturedRounded
+        autoButton.image = NSImage(systemSymbolName: "gearshape.2", accessibilityDescription: "Auto-pilot")
+        autoButton.imagePosition = .imageOnly
+        autoButton.toolTip = "Auto-pilot: auto-verify after changes, auto-fix on failure"
+        autoButton.target = self
+        autoButton.action = #selector(autoMenuTapped)
+
+        let row = NSStackView(views: [cliPopup, modelPopup, permPopup, NSView(), compareButton, autoButton, historyButton, newButton])
         row.orientation = .horizontal
         row.spacing = 6
         row.alignment = .centerY
@@ -508,6 +531,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             newButton.widthAnchor.constraint(equalToConstant: 26),
             historyButton.widthAnchor.constraint(equalToConstant: 26),
             compareButton.widthAnchor.constraint(equalToConstant: 26),
+            autoButton.widthAnchor.constraint(equalToConstant: 26),
 
             statusLabel.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 10),
             statusLabel.topAnchor.constraint(equalTo: row.bottomAnchor, constant: 3),
@@ -831,6 +855,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         // tool-only turn doesn't leave an empty bubble.
         streamingBubble = nil
         turnFlaggedActions.removeAll()
+        autoFixIterations = 0   // a manual prompt starts a fresh auto-fix budget
         statusLabel.stringValue = "Thinking…"
         sendButton.isEnabled = false
         controller?.send(text, editorContext: editorContext)
@@ -1039,6 +1064,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         let card = AgentChangesCard(diff: diff, revert: revert)
         card.onVerify = { [weak self] in self?.runVerify() }
         addArrangedRow(card)
+        lastTurnChangedFiles = true   // for the autonomous auto-verify trigger
     }
 
     // MARK: - Verify (Plan → Act → Verify)
@@ -1069,10 +1095,22 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
                 card?.markRunning(plan.steps[index])
             }
             self?.scrollToBottom()
-        }, onFinish: { [weak card, weak self] passed, _ in
+        }, onFinish: { [weak card, weak self] passed, results in
             card?.finish(allPassed: passed)
             self?.verifyRunner = nil
             self?.scrollToBottom()
+            guard let self else { return }
+            // Auto-fix: on failure, re-prompt the agent (capped to avoid runaway).
+            if !passed, self.autoFixEnabled, self.autoFixIterations < Self.autoFixCap,
+               self.controller?.isStreaming == false, self.controller?.isOverBudget == false,
+               let failed = results.first(where: { !$0.passed }) {
+                self.autoFixIterations += 1
+                self.appendBubble(role: .system,
+                                  text: "⟳ Auto-fix \(self.autoFixIterations)/\(Self.autoFixCap): asking the agent to fix the failing \(failed.step.label)…")
+                self.sendFixRequest(for: failed)
+            } else if !passed, self.autoFixEnabled, self.autoFixIterations >= Self.autoFixCap {
+                self.appendBubble(role: .system, text: "Auto-fix stopped after \(Self.autoFixCap) attempts — needs a human.")
+            }
         })
     }
 
@@ -1223,6 +1261,39 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         }
     }
 
+    // MARK: - Auto-pilot (autonomous verify → fix loop)
+
+    @objc private func autoMenuTapped() {
+        let menu = NSMenu()
+        let v = NSMenuItem(title: "Auto-verify after changes", action: #selector(toggleAutoVerify), keyEquivalent: "")
+        v.state = autoVerifyEnabled ? .on : .off; v.target = self
+        let f = NSMenuItem(title: "Auto-fix on failure (max \(Self.autoFixCap)×)", action: #selector(toggleAutoFix), keyEquivalent: "")
+        f.state = autoFixEnabled ? .on : .off; f.target = self
+        menu.addItem(v)
+        menu.addItem(f)
+        menu.addItem(.separator())
+        let note = NSMenuItem(title: "After an Auto-mode turn edits files, run the project's build/test automatically; auto-fix re-prompts the agent on failure.", action: nil, keyEquivalent: "")
+        note.isEnabled = false
+        menu.addItem(note)
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: autoButton.bounds.height + 2), in: autoButton)
+    }
+
+    @objc private func toggleAutoVerify() {
+        autoVerifyEnabled.toggle()
+        if !autoVerifyEnabled { autoFixEnabled = false }  // fix needs verify
+        updateAutoButton()
+    }
+
+    @objc private func toggleAutoFix() {
+        autoFixEnabled.toggle()
+        if autoFixEnabled { autoVerifyEnabled = true }     // fix implies verify
+        updateAutoButton()
+    }
+
+    private func updateAutoButton() {
+        autoButton.contentTintColor = (autoVerifyEnabled || autoFixEnabled) ? .controlAccentColor : nil
+    }
+
     public func conversation(_ c: AgentConversationController, turnDidFinish error: String?) {
         sendButton.isEnabled = true
         refreshStatus()
@@ -1245,6 +1316,13 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         }
         streamingBubble = nil
         scrollToBottom()
+
+        // Autonomous loop: if the turn edited files, auto-run verify.
+        let changed = lastTurnChangedFiles
+        lastTurnChangedFiles = false
+        if error == nil, changed, autoVerifyEnabled, comparePending == 0 {
+            runVerify()
+        }
     }
 
     // MARK: - Cost & budget
