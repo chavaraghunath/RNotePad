@@ -19,6 +19,11 @@ public final class AgentProcessRunner: AgentTurnHandle {
     private var stderrText = ""
     private let lock = NSLock()
     private var finished = false
+    /// PTY fds backing the child's stdin (when not piping a prompt in), so that
+    /// TTY-requiring commands the agent runs (e.g. `docker run -it`) see a
+    /// terminal. Closed right after launch so stdin also yields EOF (no hang).
+    private var ptyMaster: Int32 = -1
+    private var ptySlave: Int32 = -1
     /// Keep the runner alive for the lifetime of the subprocess even if the
     /// caller drops the returned handle — a live turn must not die early.
     private var selfRetain: AgentProcessRunner?
@@ -52,16 +57,44 @@ public final class AgentProcessRunner: AgentTurnHandle {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        // Either pipe a prompt in or close stdin so CLIs (e.g. codex exec) don't
-        // block waiting for piped input.
+        // Either pipe a prompt in, or give the child a PTY-backed stdin so the
+        // agent (and the commands it runs) detect a terminal and TTY-requiring
+        // tools like `docker run -it` work — while stdout stays a pipe for clean
+        // JSON. Falls back to /dev/null if a PTY can't be allocated.
         if let stdin {
             let inPipe = Pipe()
             process.standardInput = inPipe
             inPipe.fileHandleForWriting.write(Data(stdin.utf8))
             inPipe.fileHandleForWriting.closeFile()
+        } else if let (master, slave) = Self.makePTY() {
+            ptyMaster = master
+            ptySlave = slave
+            process.standardInput = FileHandle(fileDescriptor: slave, closeOnDealloc: false)
         } else {
             process.standardInput = FileHandle.nullDevice
         }
+    }
+
+    /// Allocate a pseudo-terminal master/slave pair. The slave becomes the
+    /// child's stdin (a real tty); both ends are closed right after launch so
+    /// reads on stdin also see EOF and never block.
+    private static func makePTY() -> (master: Int32, slave: Int32)? {
+        let master = posix_openpt(O_RDWR | O_NOCTTY)
+        guard master >= 0, grantpt(master) == 0, unlockpt(master) == 0,
+              let name = ptsname(master) else {
+            if master >= 0 { close(master) }
+            return nil
+        }
+        let slave = open(name, O_RDWR | O_NOCTTY)
+        guard slave >= 0 else { close(master); return nil }
+        return (master, slave)
+    }
+
+    /// Close any PTY fds we opened for the child's stdin (after the child has
+    /// dup'd them during launch). Idempotent.
+    private func closePTY() {
+        if ptySlave >= 0 { close(ptySlave); ptySlave = -1 }
+        if ptyMaster >= 0 { close(ptyMaster); ptyMaster = -1 }
     }
 
     /// Spawn the process and begin streaming. Returns false if spawn failed.
@@ -83,8 +116,12 @@ public final class AgentProcessRunner: AgentTurnHandle {
         }
         do {
             try process.run()
+            // The child has dup'd the PTY slave; close our copies so stdin also
+            // sees EOF (a real tty, but no blocking) and we don't leak fds.
+            closePTY()
             return true
         } catch {
+            closePTY()
             selfRetain = nil
             DispatchQueue.main.async { [weak self] in
                 self?.onExit(-1, "spawn failed: \(error.localizedDescription)")
