@@ -244,8 +244,10 @@ public final class ProjectIndex {
     }
 
     public func removeRoot(absolutePath: String) {
-        guard let stmt = prepare("DELETE FROM roots WHERE path = ?") else { return }
         queue.sync {
+            // Prepare inside the serial queue — statement creation/finalization
+            // must be ordered with every other DB op (and close()).
+            guard let stmt = self.prepare("DELETE FROM roots WHERE path = ?") else { return }
             defer { sqlite3_finalize(stmt) }
             self.bindText(stmt, 1, absolutePath)
             _ = sqlite3_step(stmt)
@@ -309,8 +311,9 @@ public final class ProjectIndex {
 
     /// Delete a file (and its symbols / tags / links via CASCADE).
     public func removeFile(rootID: Int64, relPath: String) {
-        guard let stmt = prepare("DELETE FROM files WHERE root_id = ? AND rel_path = ?") else { return }
         queue.sync {
+            // Prepare inside the serial queue (see removeRoot).
+            guard let stmt = self.prepare("DELETE FROM files WHERE root_id = ? AND rel_path = ?") else { return }
             defer { sqlite3_finalize(stmt) }
             self.bindInt64(stmt, 1, rootID)
             self.bindText(stmt, 2, relPath)

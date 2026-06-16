@@ -46,8 +46,9 @@ public final class WorkspaceIndexHost: IndexerCoordinatorDelegate {
     }
 
     private func load(workspace ws: Workspace) {
-        // Tear down prior.
-        indexer?.stop()
+        // Tear down prior. stopAndDrain() blocks until all queued indexer work
+        // has finished, so closing the index below can't race in-flight scans.
+        indexer?.stopAndDrain()
         indexer = nil
         index?.close()
         index = nil

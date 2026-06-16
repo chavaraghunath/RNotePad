@@ -124,7 +124,11 @@ public final class LSPClient {
                 let chunk = handle.availableData
                 guard !chunk.isEmpty, let text = String(data: chunk, encoding: .utf8) else { return }
                 DispatchQueue.main.async {
-                    self?.delegate?.lsp(self!, didLog: text)
+                    // Strong capture: never force-unwrap `self` — the client can
+                    // deallocate between the optional-chain and the call during
+                    // shutdown, which previously crashed here.
+                    guard let self else { return }
+                    self.delegate?.lsp(self, didLog: text)
                 }
             }
             return true

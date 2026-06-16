@@ -43,6 +43,14 @@ public final class IndexerCoordinator {
     private var streams: [URL: FSEventStreamRef] = [:]
     private var rootIDByPath: [String: Int64] = [:]
 
+    // Set (off-queue) when the coordinator is being torn down, so a long
+    // in-flight scan / event batch can bail promptly instead of touching a
+    // ProjectIndex that is about to be closed.
+    private let stateLock = NSLock()
+    private var _stopped = false
+    private var isStopped: Bool { stateLock.lock(); defer { stateLock.unlock() }; return _stopped }
+    private func markStopped() { stateLock.lock(); _stopped = true; stateLock.unlock() }
+
     public init(workspace: Workspace, index: ProjectIndex) {
         self.workspace = workspace
         self.index = index
@@ -63,18 +71,32 @@ public final class IndexerCoordinator {
     }
 
     public func stop() {
-        for (_, stream) in streams {
-            FSEventStreamStop(stream)
-            FSEventStreamInvalidate(stream)
-            FSEventStreamRelease(stream)
+        // Tear down FSEvent streams on the indexer queue (where they were
+        // scheduled). The serial queue.sync also waits for any in-flight scan /
+        // event batch to finish, so callers know no queued work survives.
+        queue.sync {
+            for (_, stream) in self.streams {
+                FSEventStreamStop(stream)
+                FSEventStreamInvalidate(stream)
+                FSEventStreamRelease(stream)
+            }
+            self.streams.removeAll()
         }
-        streams.removeAll()
+    }
+
+    /// Stop and synchronously drain: mark stopped (so a long scan bails fast),
+    /// then tear down + wait for the queue to settle. Call this BEFORE closing
+    /// the ProjectIndex so no queued work touches a closed database.
+    public func stopAndDrain() {
+        markStopped()
+        stop()
     }
 
     // MARK: - Bootstrap
 
     private func bootstrapRoots() {
         for root in workspace.roots {
+            if isStopped { return }
             // Resolve symlinks via realpath() so FSEvents callbacks (which
             // the kernel delivers using canonical paths — e.g.
             // /private/tmp/... not /tmp/...) match our stored root. Apple's
@@ -115,6 +137,7 @@ public final class IndexerCoordinator {
 
         var seen: Set<String> = []
         for case let url as URL in enumerator {
+            if isStopped { return }   // bail fast on teardown
             // Skip excluded directories by descending no further.
             let basename = url.lastPathComponent
             let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
@@ -200,6 +223,7 @@ public final class IndexerCoordinator {
     }
 
     private func handleEvents(paths: [String], flags: [UInt32]) {
+        if isStopped { return }
         for (idx, raw) in paths.enumerated() {
             // Defensive canonicalisation. FSEvents normally already gives
             // canonical paths but realpath() is cheap.

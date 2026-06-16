@@ -107,19 +107,21 @@ public enum MLXModelManager {
             let pipe = Pipe()
             p.standardOutput = pipe
             p.standardError = pipe
+            let done = DispatchSemaphore(value: 0)
             pipe.fileHandleForReading.readabilityHandler = { h in
                 let d = h.availableData
-                guard !d.isEmpty else { return }
+                if d.isEmpty { h.readabilityHandler = nil; done.signal(); return }
                 let s = String(decoding: d, as: UTF8.self).trimmingCharacters(in: .newlines)
                 if !s.isEmpty { DispatchQueue.main.async { progress(s) } }
             }
             do { try p.run() } catch {
+                pipe.fileHandleForReading.readabilityHandler = nil
                 markEnd(modelID)
                 DispatchQueue.main.async { progress("launch failed: \(error.localizedDescription)"); completion(false) }
                 return
             }
             p.waitUntilExit()
-            pipe.fileHandleForReading.readabilityHandler = nil
+            done.wait()   // drain through EOF so no trailing progress line is lost
             markEnd(modelID)
             let ok = p.terminationStatus == 0 && isFullyDownloaded(modelID)
             DispatchQueue.main.async { completion(ok) }

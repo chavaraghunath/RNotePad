@@ -13,7 +13,21 @@ public final class LSPServerManager: LSPClientDelegate {
 
     public static let shared = LSPServerManager()
 
-    public weak var delegate: LSPServerManagerDelegate?
+    /// Weakly-held listeners. Every open document registers one; the manager
+    /// broadcasts initialize/notification events to all of them, and each
+    /// filters by document URI. Replaces the former single `delegate` slot,
+    /// which lost diagnostics for every document but the last one opened.
+    private let listeners = NSHashTable<AnyObject>.weakObjects()
+
+    public func addListener(_ listener: LSPServerManagerDelegate) {
+        queue.sync { self.listeners.add(listener) }
+    }
+    public func removeListener(_ listener: LSPServerManagerDelegate) {
+        queue.sync { self.listeners.remove(listener) }
+    }
+    private func currentListeners() -> [LSPServerManagerDelegate] {
+        queue.sync { self.listeners.allObjects.compactMap { $0 as? LSPServerManagerDelegate } }
+    }
 
     private struct Key: Hashable {
         let rootPath: String
@@ -80,15 +94,18 @@ public final class LSPServerManager: LSPClientDelegate {
             ],
         ]
         client.sendRequest(method: "initialize", params: params) { [weak self] result in
+            guard let self else { return }
             switch result {
             case .success:
                 // Servers expect us to send `initialized` after the response.
                 client.sendNotification(method: "initialized", params: [:])
-                self?.queue.async {
+                self.queue.async {
                     let key = Key(rootPath: rootURL.standardizedFileURL.path, languageId: languageId)
-                    self?.initialized.insert(key)
+                    self.initialized.insert(key)
                 }
-                self?.delegate?.lspManager(self!, didInitialize: client, languageId: languageId)
+                for listener in self.currentListeners() {
+                    listener.lspManager(self, didInitialize: client, languageId: languageId)
+                }
             case .failure(let error):
                 NSLog("[Sourcepad] LSP \(languageId) initialize failed: \(error.message)")
             }
@@ -137,10 +154,10 @@ public final class LSPServerManager: LSPClientDelegate {
     public func lsp(_ client: LSPClient,
                     didReceiveNotification method: String,
                     params: Any?) {
-        delegate?.lspManager(self,
-                             client: client,
-                             didReceiveNotification: method,
-                             params: params)
+        for listener in currentListeners() {
+            listener.lspManager(self, client: client,
+                                didReceiveNotification: method, params: params)
+        }
     }
 
     public func lsp(_ client: LSPClient,

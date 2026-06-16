@@ -69,21 +69,29 @@ public final class VerifyRunner {
         p.standardError = pipe
         p.standardInput = FileHandle.nullDevice
 
+        // A single reader thread (the readability handler, which GCD never runs
+        // concurrently with itself) owns `data`; the semaphore signalled at EOF
+        // gives the waiting thread a happens-before edge before it reads `data`.
+        // This avoids the prior race between the handler and a post-exit drain.
         var data = Data()
         let handle = pipe.fileHandleForReading
+        let done = DispatchSemaphore(value: 0)
         handle.readabilityHandler = { h in
             let chunk = h.availableData
-            if !chunk.isEmpty { data.append(chunk) }
+            if chunk.isEmpty {
+                h.readabilityHandler = nil
+                done.signal()
+            } else {
+                data.append(chunk)
+            }
         }
         current = p
         do { try p.run() } catch {
+            handle.readabilityHandler = nil
             return (-1, "failed to launch: \(error.localizedDescription)")
         }
         p.waitUntilExit()
-        handle.readabilityHandler = nil
-        // Drain anything buffered after the handler was cleared.
-        let rest = handle.readDataToEndOfFile()
-        if !rest.isEmpty { data.append(rest) }
+        done.wait()   // wait for the reader to drain through EOF
         current = nil
 
         var text = String(decoding: data, as: UTF8.self)

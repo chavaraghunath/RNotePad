@@ -475,6 +475,18 @@ public final class EditorPaneViewController: NSViewController, EditorContent {
 
     public func markSavePoint() { SciSetSavePoint(sciView) }
 
+    /// Apply a batch of byte-range replacements as a single undo action against
+    /// the real Scintilla view. Callers must order ranges end-to-start so each
+    /// stays valid through the batch. This keeps LSP / refactor code from poking
+    /// the Scintilla bridge on the wrong NSView (`view` is the wrapper, not the
+    /// editor) — all bridge calls stay inside this controller.
+    public func applyByteRangeEdits(_ edits: [(start: Int, end: Int, newText: String)]) {
+        guard !edits.isEmpty else { return }
+        SciBeginUndoAction(sciView)
+        for e in edits { _ = SciReplaceBytesRange(sciView, e.start, e.end, e.newText) }
+        SciEndUndoAction(sciView)
+    }
+
     public func setLexer(_ name: String?) {
         currentLexer = name
         _ = SciApplyLexer(sciView, name)

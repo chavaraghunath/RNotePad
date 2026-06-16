@@ -326,7 +326,20 @@ public enum AgentContextProvider {
             absolute = (workspaceRoot as NSString)
                 .appendingPathComponent(expanded)
         }
-        let standardized = (absolute as NSString).standardizingPath
+        // Canonicalize (resolve symlinks, `..`, `.`) for a reliable containment
+        // check on both sides.
+        let standardized = (absolute as NSString).resolvingSymlinksInPath
+
+        // Security boundary: only attach files INSIDE the workspace root. This
+        // blocks a prompt from exfiltrating arbitrary local files via an
+        // absolute path or `..` escape (e.g. `@~/.ssh/config`, `@/etc/...`).
+        let root = (workspaceRoot as NSString).resolvingSymlinksInPath
+        guard !root.isEmpty else { return nil }
+        let rootBoundary = root.hasSuffix("/") ? root : root + "/"
+        guard standardized == root || standardized.hasPrefix(rootBoundary) else {
+            NSLog("[Sourcepad] @-mention outside workspace ignored: \(candidate)")
+            return nil
+        }
 
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: standardized, isDirectory: &isDir),

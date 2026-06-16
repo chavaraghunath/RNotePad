@@ -460,15 +460,44 @@ public final class SidebarViewController: NSViewController,
         return workspace.roots.contains(where: { $0.standardizedFileURL == std })
     }
 
+    /// Validate user input is a single, safe path component: no separators,
+    /// not "."/".."/empty. Returns the trimmed name, or nil if unsafe.
+    private func validatedComponent(_ raw: String) -> String? {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name != ".", name != "..",
+              !name.contains("/"), !name.contains(":") else { return nil }
+        // Must round-trip as exactly one component.
+        guard (name as NSString).lastPathComponent == name else { return nil }
+        return name
+    }
+
+    private func presentMutationError(_ message: String, _ error: Error? = nil) {
+        let a = NSAlert()
+        a.alertStyle = .warning
+        a.messageText = message
+        if let error { a.informativeText = error.localizedDescription }
+        a.addButton(withTitle: "OK")
+        if let win = view.window { a.beginSheetModal(for: win) { _ in } } else { a.runModal() }
+    }
+
     @objc private func menuNewFile(_ sender: Any?) {
         guard let target = clickedURL() else { return }
         let dir = enclosingDir(for: target)
         let alert = makePromptAlert(title: "New File", message: "Filename:")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = alert.input
-        guard !name.isEmpty else { return }
+        guard let name = validatedComponent(alert.input) else {
+            presentMutationError("Enter a valid file name (no “/” or “:”).")
+            return
+        }
         let url = dir.appendingPathComponent(name)
-        FileManager.default.createFile(atPath: url.path, contents: nil, attributes: nil)
+        guard !FileManager.default.fileExists(atPath: url.path) else {
+            presentMutationError("“\(name)” already exists.")
+            return
+        }
+        guard FileManager.default.createFile(atPath: url.path, contents: nil, attributes: nil) else {
+            presentMutationError("Could not create “\(name)”.")
+            return
+        }
         refreshAfterMutation(parent: dir)
         NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
     }
@@ -478,10 +507,17 @@ public final class SidebarViewController: NSViewController,
         let dir = enclosingDir(for: target)
         let alert = makePromptAlert(title: "New Folder", message: "Folder name:")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = alert.input
-        guard !name.isEmpty else { return }
+        guard let name = validatedComponent(alert.input) else {
+            presentMutationError("Enter a valid folder name (no “/” or “:”).")
+            return
+        }
         let url = dir.appendingPathComponent(name)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: false, attributes: nil)
+        do {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false, attributes: nil)
+        } catch {
+            presentMutationError("Could not create folder “\(name)”.", error)
+            return
+        }
         refreshAfterMutation(parent: dir)
     }
 
@@ -489,14 +525,22 @@ public final class SidebarViewController: NSViewController,
         guard let url = clickedURL(), !isWorkspaceRoot(url) else { return }
         let alert = makePromptAlert(title: "Rename", message: "New name:", defaultValue: url.lastPathComponent)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = alert.input
-        guard !name.isEmpty, name != url.lastPathComponent else { return }
-        let dest = url.deletingLastPathComponent().appendingPathComponent(name)
-        if FileManager.default.fileExists(atPath: dest.path) {
-            NSSound.beep()
+        guard let name = validatedComponent(alert.input) else {
+            presentMutationError("Enter a valid name (no “/” or “:”).")
             return
         }
-        try? FileManager.default.moveItem(at: url, to: dest)
+        guard name != url.lastPathComponent else { return }
+        let dest = url.deletingLastPathComponent().appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: dest.path) {
+            presentMutationError("“\(name)” already exists.")
+            return
+        }
+        do {
+            try FileManager.default.moveItem(at: url, to: dest)
+        } catch {
+            presentMutationError("Could not rename to “\(name)”.", error)
+            return
+        }
         refreshAfterMutation(parent: url.deletingLastPathComponent())
     }
 

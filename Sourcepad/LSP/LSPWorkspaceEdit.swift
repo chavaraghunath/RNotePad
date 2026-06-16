@@ -79,16 +79,17 @@ public enum LSPWorkspaceEditApplier {
             return a.startCol > b.startCol
         }
         let source = pane.currentText
-        SciBeginUndoAction(pane.view)
-        for edit in parsed {
+        let byteEdits: [(start: Int, end: Int, newText: String)] = parsed.map { edit in
             let startByte = LSPDiagnostics.byteOffsetStatic(
                 forLineColumnUTF16: LSP.Position(line: edit.startLine, character: edit.startCol),
                 in: source)
             let endByte = LSPDiagnostics.byteOffsetStatic(
                 forLineColumnUTF16: LSP.Position(line: edit.endLine, character: edit.endCol),
                 in: source)
-            _ = SciReplaceBytesRange(pane.view, startByte, endByte, edit.newText)
+            return (startByte, endByte, edit.newText)
         }
-        SciEndUndoAction(pane.view)
+        // Route through the pane's narrow edit API — it owns the Scintilla view;
+        // LSP code must never call the bridge on `pane.view` (the wrapper).
+        pane.applyByteRangeEdits(byteEdits)
     }
 }

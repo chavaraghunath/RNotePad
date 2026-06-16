@@ -58,14 +58,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async {
             // Skip if files were already opened via Apple Events (launch-with-file).
             if !NSDocumentController.shared.documents.isEmpty { return }
-            // Try to restore the previous session.
-            if SessionRestore.shared.tryRestore() { return }
-            // No session to restore — fall back to an untitled document.
-            guard let doc = try? NSDocumentController.shared.openUntitledDocumentAndDisplay(true) else { return }
-            for wc in doc.windowControllers {
-                wc.showWindow(nil)
-                wc.window?.makeKeyAndOrderFront(nil)
+            let openUntitled: () -> Void = {
+                guard NSDocumentController.shared.documents.isEmpty,
+                      let doc = try? NSDocumentController.shared.openUntitledDocumentAndDisplay(true) else { return }
+                for wc in doc.windowControllers {
+                    wc.showWindow(nil)
+                    wc.window?.makeKeyAndOrderFront(nil)
+                }
             }
+            // Try to restore the previous session; if there's nothing to restore,
+            // or if every restore open fails, fall back to an untitled document.
+            if SessionRestore.shared.tryRestore(fallbackIfNoneOpened: openUntitled) { return }
+            openUntitled()
         }
     }
 
@@ -115,16 +119,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc public func application(_ sender: NSApplication, openFile filename: String) -> Bool {
         DebugLog.log("application(_:openFile:) received \(filename)")
         let url = URL(fileURLWithPath: filename)
-        var success = false
-        let group = DispatchGroup()
-        group.enter()
+        // openDocument's completion is delivered on the main thread, so we must
+        // NOT block it with group.wait() (that deadlocked the Apple Event). Kick
+        // the open off asynchronously and report that we've handled it.
         NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
-            success = (error == nil)
             if let error { DebugLog.log("openFile failed: \(url.path) — \(error)") }
-            group.leave()
         }
-        group.wait()
-        return success
+        return true
     }
 
     public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

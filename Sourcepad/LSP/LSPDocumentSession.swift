@@ -67,12 +67,10 @@ public final class LSPDocumentSession: LSPServerManagerDelegate {
         self.lastSyncedSource = initialText
         sync.didOpen(text: initialText)
 
-        // Subscribe to publishDiagnostics. The manager has a single delegate
-        // slot — we install ourselves while we're active; multiple
-        // documents per app needs a hub layer (Phase 8). Phase 6 is the
-        // single-doc proof: only the most recently opened LSP-capable
-        // document receives diagnostics.
-        LSPServerManager.shared.delegate = self
+        // Subscribe to publishDiagnostics. The manager broadcasts to every
+        // registered listener; we filter by document URI below, so each open
+        // document receives its own diagnostics (no more single-slot clobber).
+        LSPServerManager.shared.addListener(self)
     }
 
     public func didChange(text: String) {
@@ -88,9 +86,7 @@ public final class LSPDocumentSession: LSPServerManagerDelegate {
         sync?.didClose()
         diagnostics.clearAll()
         sync = nil
-        if LSPServerManager.shared.delegate === self {
-            LSPServerManager.shared.delegate = nil
-        }
+        LSPServerManager.shared.removeListener(self)
     }
 
     // MARK: - Hover

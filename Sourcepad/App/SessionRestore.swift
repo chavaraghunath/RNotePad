@@ -38,23 +38,33 @@ public final class SessionRestore {
         return dict[url.path]
     }
 
-    /// Opens every saved URL via NSDocumentController. Returns true if at least
-    /// one was opened. Files that no longer exist are skipped.
+    /// Attempts to reopen every saved URL via NSDocumentController. Returns true
+    /// if there was a restorable session to attempt (so the caller can skip its
+    /// own fallback). Opens are async; if EVERY open ultimately fails, `fallback`
+    /// is invoked on the main thread so the app still ends up with a window.
+    /// Returns false when there's nothing to restore (no saved/extant files).
     @discardableResult
-    public func tryRestore() -> Bool {
-        guard let urls = UserDefaults.standard.array(forKey: openURLsKey) as? [String], !urls.isEmpty
+    public func tryRestore(fallbackIfNoneOpened fallback: @escaping () -> Void) -> Bool {
+        guard let paths = UserDefaults.standard.array(forKey: openURLsKey) as? [String], !paths.isEmpty
         else { return false }
+        let existing = paths.map { URL(fileURLWithPath: $0) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !existing.isEmpty else { return false }
+
         let dc = NSDocumentController.shared
-        var opened = 0
-        for path in urls {
-            let url = URL(fileURLWithPath: path)
-            guard FileManager.default.fileExists(atPath: url.path) else { continue }
-            dc.openDocument(withContentsOf: url, display: true) { _, _, error in
-                if let error { NSLog("[Sourcepad] session restore: \(url.path) — \(error)") }
+        // Completions are delivered on the main thread, so these counters are
+        // only ever touched there — no synchronization needed.
+        var remaining = existing.count
+        var anyOpened = false
+        for url in existing {
+            dc.openDocument(withContentsOf: url, display: true) { doc, _, error in
+                if doc != nil, error == nil { anyOpened = true }
+                else if let error { NSLog("[Sourcepad] session restore: \(url.path) — \(error)") }
+                remaining -= 1
+                if remaining == 0 && !anyOpened { fallback() }
             }
-            opened += 1
         }
-        return opened > 0
+        return true
     }
 
     /// Forget the saved session (use when user explicitly closes everything

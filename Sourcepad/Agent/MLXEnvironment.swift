@@ -100,15 +100,21 @@ public enum MLXEnvironment {
         let pipe = Pipe()
         p.standardOutput = pipe
         p.standardError = pipe
+        // Stream output, signalling at EOF so the trailing chunk isn't dropped
+        // and the handle isn't read concurrently with a post-exit teardown.
+        let done = DispatchSemaphore(value: 0)
         pipe.fileHandleForReading.readabilityHandler = { h in
             let d = h.availableData
-            guard !d.isEmpty else { return }
+            if d.isEmpty { h.readabilityHandler = nil; done.signal(); return }
             let s = String(decoding: d, as: UTF8.self)
             DispatchQueue.main.async { progress(s.trimmingCharacters(in: .newlines)) }
         }
-        do { try p.run() } catch { return -1 }
+        do { try p.run() } catch {
+            pipe.fileHandleForReading.readabilityHandler = nil
+            return -1
+        }
         p.waitUntilExit()
-        pipe.fileHandleForReading.readabilityHandler = nil
+        done.wait()
         return p.terminationStatus
     }
 }
