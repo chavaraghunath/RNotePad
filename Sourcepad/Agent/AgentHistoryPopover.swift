@@ -99,7 +99,9 @@ public final class AgentHistoryPopover: NSViewController,
     public func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let id = NSUserInterfaceItemIdentifier("cell")
         let cell = (tableView.makeView(withIdentifier: id, owner: self) as? HistoryCell) ?? HistoryCell(id: id)
-        cell.configure(with: rows[row])
+        let convo = rows[row]
+        cell.configure(with: convo)
+        cell.onDelete = { [weak self] in self?.confirmDelete(id: convo.id, title: convo.title) }
         return cell
     }
 
@@ -112,19 +114,47 @@ public final class AgentHistoryPopover: NSViewController,
         guard edge == .trailing else { return [] }
         let del = NSTableViewRowAction(style: .destructive, title: "Delete") { [weak self] _, idx in
             guard let self, idx < self.rows.count else { return }
-            let id = self.rows[idx].id
+            let convo = self.rows[idx]
+            // Reset the swiped row, then confirm before deleting.
+            self.table.rowActionsVisible = false
+            self.confirmDelete(id: convo.id, title: convo.title)
+        }
+        return [del]
+    }
+
+    /// Confirm, then permanently delete a conversation (and its messages,
+    /// tool calls, and embedding, via the schema's ON DELETE CASCADE).
+    private func confirmDelete(id: Int64, title: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Delete “\(title.isEmpty ? "Untitled" : title)”?"
+        alert.informativeText = "This permanently deletes the conversation and all of its history. This can't be undone."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        let doDelete: () -> Void = { [weak self] in
+            guard let self else { return }
             self.store?.deleteConversation(id)
             self.onDelete?(id)
             self.reload(query: self.search.stringValue)
         }
-        return [del]
+        if let win = view.window {
+            alert.beginSheetModal(for: win) { resp in
+                if resp == .alertFirstButtonReturn { doDelete() }
+            }
+        } else if alert.runModal() == .alertFirstButtonReturn {
+            doDelete()
+        }
     }
 }
 
-/// A two-line history row: title + "cli · model · when".
+/// A two-line history row: title + "cli · model · when", with a delete button.
 private final class HistoryCell: NSTableCellView {
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitle = NSTextField(labelWithString: "")
+    private let deleteButton = NSButton()
+    /// Invoked when the row's trash button is clicked (the popover shows a
+    /// confirm before actually deleting).
+    var onDelete: (() -> Void)?
 
     init(id: NSUserInterfaceItemIdentifier) {
         super.init(frame: .zero)
@@ -140,13 +170,31 @@ private final class HistoryCell: NSTableCellView {
         stack.alignment = .leading
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
+
+        deleteButton.bezelStyle = .inline
+        deleteButton.isBordered = false
+        deleteButton.image = NSImage(systemSymbolName: "trash", accessibilityDescription: "Delete conversation")
+        deleteButton.imagePosition = .imageOnly
+        deleteButton.contentTintColor = .secondaryLabelColor
+        deleteButton.toolTip = "Delete conversation"
+        deleteButton.target = self
+        deleteButton.action = #selector(deleteTapped)
+        deleteButton.translatesAutoresizingMaskIntoConstraints = false
+        deleteButton.setContentHuggingPriority(.required, for: .horizontal)
+        addSubview(deleteButton)
+
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            stack.trailingAnchor.constraint(equalTo: deleteButton.leadingAnchor, constant: -6),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            deleteButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            deleteButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            deleteButton.widthAnchor.constraint(equalToConstant: 22),
         ])
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func deleteTapped() { onDelete?() }
 
     private static let dateFmt: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f

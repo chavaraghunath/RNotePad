@@ -719,9 +719,16 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             self?.historyPopover?.close()
             self?.loadConversation(id)
         }
+        vc.onDelete = { [weak self] id in
+            // If the user deleted the conversation that's currently open, reset
+            // the panel to a fresh one so it isn't pointing at a deleted row.
+            guard let self, self.controller?.conversationID == id else { return }
+            self.newConversation()
+        }
         let pop = NSPopover()
         pop.contentViewController = vc
-        pop.behavior = .transient
+        // Semitransient so showing the delete-confirm sheet doesn't dismiss it.
+        pop.behavior = .semitransient
         pop.contentSize = NSSize(width: 340, height: 380)
         pop.show(relativeTo: historyButton.bounds, of: historyButton, preferredEdge: .minY)
         historyPopover = pop
