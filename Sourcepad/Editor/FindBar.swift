@@ -52,6 +52,7 @@ public final class FindBar: NSView, NSTextFieldDelegate {
 
     private func buildUI() {
         wantsLayer = true
+        clipsToBounds = true   // never let controls bleed past the bar (esp. when collapsed to 0 height)
         layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
         let bottomBorder = NSView()
@@ -121,23 +122,34 @@ public final class FindBar: NSView, NSTextFieldDelegate {
         replaceDisclosure.controlSize = .small
         replaceDisclosure.toolTip = "Show replace row"
 
-        // Find row.
+        // Find row. A flexible trailing spacer soaks up all slack so the real
+        // controls stay packed at the LEFT and never get pushed off the right
+        // edge of the window (which previously clipped the toggles/Replace).
+        let findTrailingSpacer = NSView()
+        findTrailingSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        findTrailingSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let findStack = NSStackView(views: [
             closeButton, findField, caseToggle, regexToggle, wordToggle,
-            prevButton, nextButton, countLabel, replaceDisclosure,
+            prevButton, nextButton, countLabel, replaceDisclosure, findTrailingSpacer,
         ])
         findStack.orientation = .horizontal
         findStack.spacing = 6
         findStack.alignment = .centerY
         findStack.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
         findStack.translatesAutoresizingMaskIntoConstraints = false
+        // Keep the find field a fixed, comfortable width instead of letting it
+        // absorb slack and shove the trailing controls into the window edge.
+        findStack.setHuggingPriority(.defaultHigh, for: .horizontal)
         self.findRow = findStack
 
         // Replace row (hidden by default).
         let replaceLeadingSpacer = NSView()
         replaceLeadingSpacer.widthAnchor.constraint(equalToConstant: 30).isActive = true
+        let replaceTrailingSpacer = NSView()
+        replaceTrailingSpacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        replaceTrailingSpacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let replaceStack = NSStackView(views: [
-            replaceLeadingSpacer, replaceField, replaceButton, replaceAllButton,
+            replaceLeadingSpacer, replaceField, replaceButton, replaceAllButton, replaceTrailingSpacer,
         ])
         replaceStack.orientation = .horizontal
         replaceStack.spacing = 6
