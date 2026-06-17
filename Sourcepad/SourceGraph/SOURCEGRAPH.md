@@ -105,20 +105,25 @@ bash Sourcepad/SourceGraph/Tests/run-all.sh
 What is real and tested:
 
 - Deterministic graph model and JSON encoding.
-- File and directory/module nodes; `contains` edges (module→module, module→file)
-  and file `references` edges from `ProjectIndex` backlinks.
+- File and directory/module nodes; `contains` edges (module→module, module→file,
+  file→symbol) and file `references` edges from `ProjectIndex` backlinks.
+- **Symbol nodes** — functions, methods, classes, structs, enums, interfaces,
+  types — extracted by a Tree-sitter pass in the background indexer
+  (`SymbolExtractor` → `ProjectIndex.replaceSymbols`). Languages: Python, C, C++,
+  JavaScript, TypeScript, Go, Rust, Java. Verified per-language and end-to-end
+  (a fixture indexes 5 files → 12 symbols across 4 languages; codedog's tree →
+  1,959 symbols). Re-extraction is gated on changed-or-missing, so re-scans are
+  cheap.
 - MCP stdio server with the eight tools, validated end-to-end.
 
-Honest limitation, **confirmed by Tier 3 on a 96k-file workspace** (118,517 nodes
-but `symbols: 0`):
+Known limits:
 
-- **The graph is currently file/module-level only.** `SourceGraphBuilder` reads
-  `ProjectIndex.allSymbols()`, but the background indexer does not yet run a
-  symbol-extraction pass, so the symbols table is empty and no `function` /
-  `type` / `method` nodes are produced on real data. Making the graph genuinely
-  symbol-aware requires wiring a tree-sitter symbol-extraction pass into
-  `IndexerCoordinator` (calling `ProjectIndex.replaceSymbols`). Until then,
-  `query_knowledge` / `core_concepts` operate over files and directories.
-- No symbol-to-symbol relationships (call/inheritance graph) are inferred.
+- A language needs a vendored Tree-sitter grammar (the eight above) to yield
+  symbols; other files contribute only file/module nodes. Swift is not yet
+  vendored (its grammar needs a generation step).
+- No symbol-to-symbol relationships (call/inheritance graph) are inferred yet —
+  only containment.
 - The MCP server serves a startup snapshot; it does not live-refresh while the
   indexer changes.
+- An already-indexed workspace backfills symbols the next time its files are
+  scanned (open the folder, edit, or run `Sourcepad --reindex <folder>`).

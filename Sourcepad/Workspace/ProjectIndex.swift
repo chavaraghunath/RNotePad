@@ -299,6 +299,28 @@ public final class ProjectIndex {
         }
     }
 
+    /// The stored content hash for a file (nil if not indexed). Used by the
+    /// indexer to decide whether a file changed since the last symbol pass.
+    public func contentHash(rootID: Int64, relPath: String) -> String? {
+        queue.sync {
+            guard let stmt = self.prepare("SELECT content_hash FROM files WHERE root_id = ? AND rel_path = ?") else { return nil }
+            defer { sqlite3_finalize(stmt) }
+            self.bindInt64(stmt, 1, rootID)
+            self.bindText(stmt, 2, relPath)
+            return sqlite3_step(stmt) == SQLITE_ROW ? self.textColumn(stmt, 0) : nil
+        }
+    }
+
+    /// Number of symbols stored for a file id.
+    public func symbolCount(fileID: Int64) -> Int {
+        queue.sync {
+            guard let stmt = self.prepare("SELECT COUNT(*) FROM symbols WHERE file_id = ?") else { return 0 }
+            defer { sqlite3_finalize(stmt) }
+            self.bindInt64(stmt, 1, fileID)
+            return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int64(stmt, 0)) : 0
+        }
+    }
+
     private func fetchFileIDUnsynced(rootID: Int64, relPath: String) -> Int64? {
         guard let stmt = prepare("SELECT id FROM files WHERE root_id = ? AND rel_path = ?") else {
             return nil

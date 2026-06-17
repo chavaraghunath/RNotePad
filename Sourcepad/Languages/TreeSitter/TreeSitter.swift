@@ -17,6 +17,13 @@ import Foundation
 
 public enum TreeSitterLanguage: String, CaseIterable {
     case python
+    case c
+    case cpp
+    case javascript
+    case typescript
+    case go
+    case rust
+    case java
 
     /// Resolve to the Tree-sitter language pointer the grammar's entry
     /// point returns. Each entry is declared C-side in
@@ -24,23 +31,44 @@ public enum TreeSitterLanguage: String, CaseIterable {
     /// because Swift's bridging-header importer doesn't reliably expose
     /// forward-declared C struct types like TSLanguage.
     var pointer: OpaquePointer? {
-        // Tree-sitter's `tree_sitter_<lang>()` returns
-        // `const TSLanguage *` where TSLanguage is a forward-declared
-        // opaque struct. Swift imports such pointers as OpaquePointer?
-        // directly, no cast needed.
         switch self {
-        case .python: return tree_sitter_python()
+        case .python:     return tree_sitter_python()
+        case .c:          return tree_sitter_c()
+        case .cpp:        return tree_sitter_cpp()
+        case .javascript: return tree_sitter_javascript()
+        case .typescript: return tree_sitter_typescript()
+        case .go:         return tree_sitter_go()
+        case .rust:       return tree_sitter_rust()
+        case .java:       return tree_sitter_java()
         }
     }
 
-    /// Map a Sourcepad lexer name (the Lexilla identifier we already
-    /// resolve in LexerRegistry) to a Tree-sitter language, if we have
-    /// the grammar vendored. Returns nil for unsupported languages —
-    /// callers fall back to Lexilla-only highlighting in that case.
+    /// Map a Sourcepad lexer name to a Tree-sitter language. NOTE: Lexilla
+    /// collapses most C-like languages onto the single "cpp" lexer, so this is
+    /// only reliable for Python; everything else should select by file
+    /// extension via `forFilename`.
     public static func fromLexer(_ lexer: String?) -> TreeSitterLanguage? {
         switch lexer {
         case "python": return .python
         default:       return nil
+        }
+    }
+
+    /// Select a grammar by file extension — the reliable path for symbol
+    /// extraction, since Lexilla lexer names are too coarse. Returns nil for
+    /// extensions we don't have a grammar for.
+    public static func forFilename(_ name: String) -> TreeSitterLanguage? {
+        switch (name as NSString).pathExtension.lowercased() {
+        case "py", "pyi", "pyw":                     return .python
+        case "c":                                     return .c
+        case "cpp", "cc", "cxx", "c++", "hpp", "hh", "hxx", "h++", "cppm", "ipp", "h", "inl":
+                                                      return .cpp
+        case "js", "jsx", "mjs", "cjs":              return .javascript
+        case "ts", "mts", "cts", "tsx":              return .typescript
+        case "go":                                    return .go
+        case "rs":                                    return .rust
+        case "java":                                  return .java
+        default:                                      return nil
         }
     }
 }
@@ -166,6 +194,28 @@ public struct TreeSitterNode {
     public func smallestNamedDescendant(startByte: UInt32, endByte: UInt32) -> TreeSitterNode? {
         let d = ts_node_named_descendant_for_byte_range(raw, startByte, endByte)
         return ts_node_is_null(d) ? nil : TreeSitterNode(raw: d)
+    }
+
+    /// 0-based (row, column) of the node's start. Column is a byte offset.
+    public var startPoint: TreeSitterPoint {
+        let p = ts_node_start_point(raw)
+        return TreeSitterPoint(row: p.row, column: p.column)
+    }
+
+    /// The child stored under a grammar field name (e.g. "name" on a
+    /// function/class definition). nil if the field is absent.
+    public func child(byFieldName field: String) -> TreeSitterNode? {
+        let c = field.utf8CString.withUnsafeBufferPointer { buf in
+            ts_node_child_by_field_name(raw, buf.baseAddress, UInt32(field.utf8.count))
+        }
+        return ts_node_is_null(c) ? nil : TreeSitterNode(raw: c)
+    }
+
+    /// The node's source text, sliced from the original UTF-8 bytes.
+    public func text(in bytes: [UInt8]) -> String {
+        let lo = Int(startByte), hi = Int(endByte)
+        guard lo >= 0, hi <= bytes.count, lo < hi else { return "" }
+        return String(decoding: bytes[lo..<hi], as: UTF8.self)
     }
 }
 

@@ -18,12 +18,11 @@ bash "$DIR/run-tests.sh" || fail=1
 echo "── Tier 2: MCP protocol (real binary) ─────────────────────"
 python3 "$DIR/mcp_protocol_test.py" || fail=1
 
-echo "── Tier 3: end-to-end (real indexed workspace) ────────────"
-if [ -n "$(ls "$HOME/Library/Application Support/Sourcepad/Workspaces/"*.db 2>/dev/null)" ]; then
-  python3 "$DIR/workspace_e2e_test.py" || fail=1
-else
-  echo "  skipped — no indexed workspace found"
-fi
+echo "── Tier 2b: symbol extraction (all languages, real binary) ─"
+python3 "$DIR/symbol_extraction_test.py" || fail=1
+
+echo "── Tier 3: end-to-end index + graph (fixture via --reindex) ─"
+python3 "$DIR/workspace_e2e_test.py" || fail=1
 
 echo "───────────────────────────────────────────────────────────"
 [ "$fail" -eq 0 ] && echo "ALL SOURCEGRAPH TESTS PASSED" || echo "SOURCEGRAPH TESTS FAILED"

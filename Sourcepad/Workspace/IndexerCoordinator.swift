@@ -70,6 +70,21 @@ public final class IndexerCoordinator {
         }
     }
 
+    /// Run a full index pass synchronously, without starting FSEvent watchers.
+    /// For headless/CLI use (e.g. `--reindex`) and tests. Blocks until done.
+    public func indexSynchronously() {
+        queue.sync {
+            for root in self.workspace.roots {
+                if self.isStopped { return }
+                let path = self.canonicalPath(root.standardizedFileURL.path)
+                guard FileManager.default.fileExists(atPath: path) else { continue }
+                guard let rootID = self.index.upsertRoot(absolutePath: path) else { continue }
+                self.rootIDByPath[path] = rootID
+                self.initialScan(rootID: rootID, absoluteRoot: path)
+            }
+        }
+    }
+
     public func stop() {
         // Tear down FSEvent streams on the indexer queue (where they were
         // scheduled). The serial queue.sync also waits for any in-flight scan /
@@ -301,6 +316,10 @@ public final class IndexerCoordinator {
             contentHash = nil
         }
 
+        // Snapshot the prior hash BEFORE the upsert so we can tell whether the
+        // file's content actually changed since its last symbol pass.
+        let priorHash = index.contentHash(rootID: rootID, relPath: relPath)
+
         guard let fileID = index.upsertFile(
             rootID: rootID,
             relPath: relPath,
@@ -310,8 +329,34 @@ public final class IndexerCoordinator {
             contentHash: contentHash
         ) else { return }
 
+        // Re-extract symbols only when the file changed, or when it has no
+        // symbols yet (e.g. first run after this feature shipped). This keeps
+        // re-scans cheap — unchanged files aren't re-parsed.
+        let changed = priorHash == nil || priorHash != contentHash
+        if changed || index.symbolCount(fileID: fileID) == 0 {
+            extractSymbols(fileID: fileID, url: url, language: language, size: size)
+        }
         delegate?.indexer(self, didUpsertFileID: fileID, absolutePath: absolutePath, language: language)
     }
+
+    /// Parse the file with Tree-sitter (for languages we have a grammar for) and
+    /// store its symbols, so SourceGraph and any symbol queries are populated.
+    /// Skipped for unsupported languages and oversized files.
+    private func extractSymbols(fileID: Int64, url: URL, language: String?, size: Int64) {
+        guard let tsLang = TreeSitterLanguage.forFilename(url.lastPathComponent),
+              size > 0, size <= Self.maxSymbolParseBytes,
+              let data = try? Data(contentsOf: url),
+              let source = String(data: data, encoding: .utf8) else { return }
+        let symbols = SymbolExtractor.extract(source: source, language: tsLang)
+        guard !symbols.isEmpty else { return }
+        let rows = symbols.map {
+            ProjectIndex.SymbolRow(fileID: fileID, name: $0.name, kind: $0.kind, line: $0.line, col: $0.col)
+        }
+        index.replaceSymbols(rows, forFileID: fileID)
+    }
+
+    /// Don't parse very large files for symbols (keeps the indexer responsive).
+    private static let maxSymbolParseBytes: Int64 = 2_000_000
 
     // MARK: - Helpers
 

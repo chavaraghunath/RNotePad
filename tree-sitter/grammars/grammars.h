@@ -14,6 +14,13 @@ extern "C" {
 #endif
 
 const TSLanguage *tree_sitter_python(void);
+const TSLanguage *tree_sitter_c(void);
+const TSLanguage *tree_sitter_cpp(void);
+const TSLanguage *tree_sitter_javascript(void);
+const TSLanguage *tree_sitter_typescript(void);
+const TSLanguage *tree_sitter_go(void);
+const TSLanguage *tree_sitter_rust(void);
+const TSLanguage *tree_sitter_java(void);
 
 #ifdef __cplusplus
 }
