@@ -158,6 +158,16 @@ public final class AgentConversationController {
     /// bodies and a lightweight editor-context block is prepended.
     @discardableResult
     public func send(_ text: String, editorContext: AgentContextProvider.EditorContextSnapshot?) -> Bool {
+        return send(text, editorContext: editorContext, attachmentPaths: [])
+    }
+
+    /// Send a turn, attaching `attachmentPaths` (files chosen as `@`-mention
+    /// chips) in addition to any `@token`s typed in `text`. `text` is persisted
+    /// verbatim as the user message (chips rendered as `@name` by the caller).
+    @discardableResult
+    public func send(_ text: String,
+                     editorContext: AgentContextProvider.EditorContextSnapshot?,
+                     attachmentPaths: [String]) -> Bool {
         let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty, !isStreaming, let cli = registry.cli(withID: cliID) else { return false }
 
@@ -173,7 +183,8 @@ public final class AgentConversationController {
         // lightweight editor-context block prepended. Falls back to the raw
         // prompt when there is nothing to add.
         let agentPrompt = AgentContextProvider.composeAgentPrompt(
-            typed: prompt, workspaceRoot: workingDirectory, context: editorContext)
+            typed: prompt, workspaceRoot: workingDirectory, context: editorContext,
+            explicitPaths: attachmentPaths)
 
         // Native resume if we have a session for THIS cli; otherwise re-seed the
         // prior transcript so a freshly-switched CLI keeps continuity.

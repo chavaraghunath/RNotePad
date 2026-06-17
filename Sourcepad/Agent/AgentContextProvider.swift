@@ -295,9 +295,36 @@ public enum AgentContextProvider {
     public static func composeAgentPrompt(typed: String,
                                           workspaceRoot: String,
                                           context: EditorContextSnapshot?) -> String {
+        composeAgentPrompt(typed: typed, workspaceRoot: workspaceRoot,
+                           context: context, explicitPaths: [])
+    }
+
+    /// As above, but also attaches `explicitPaths` — files chosen interactively
+    /// as `@`-mention chips (which carry exact paths, so they don't appear as
+    /// `@token` text). Chip attachments and any in-text `@token` attachments are
+    /// merged and de-duped by resolved path; chips win the ordering.
+    public static func composeAgentPrompt(typed: String,
+                                          workspaceRoot: String,
+                                          context: EditorContextSnapshot?,
+                                          explicitPaths: [String]) -> String {
         let mention = resolveMentions(in: typed,
                                       workspaceRoot: workspaceRoot,
                                       maxBytesPerFile: maxContextBlockBytes)
+
+        // Resolve + read the chip paths, de-duping against each other and the
+        // in-text mentions.
+        var attachments: [Attachment] = []
+        var seen = Set<String>()
+        for path in explicitPaths {
+            guard let resolved = resolvePath(path, workspaceRoot: workspaceRoot),
+                  seen.insert(resolved).inserted,
+                  let att = readAttachment(at: resolved, cap: maxContextBlockBytes) else { continue }
+            attachments.append(att)
+        }
+        for att in mention.attachments where seen.insert(att.path).inserted {
+            attachments.append(att)
+        }
+
         var contextBlock = ""
         if let ctx = context, !ctx.isEmpty {
             contextBlock = formatAmbientContext(activeFilePath: ctx.activeFilePath,
@@ -308,7 +335,7 @@ public enum AgentContextProvider {
         }
         let composed = compose(prompt: mention.cleanedPrompt,
                                contextBlock: contextBlock,
-                               attachments: mention.attachments)
+                               attachments: attachments)
         return composed.isEmpty ? typed : composed
     }
 

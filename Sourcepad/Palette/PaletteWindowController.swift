@@ -247,7 +247,10 @@ public final class PaletteWindowController: NSWindowController,
 
 // MARK: - Row view
 
-private final class PaletteCell: NSTableCellView {
+/// Shared palette/autocomplete row: leading icon + fuzzy-highlighted title +
+/// grey subtitle. Reused by the centered command palette and the agent panel's
+/// inline `@`/`/` completion popup (same module), so both render identically.
+final class PaletteCell: NSTableCellView {
 
     private let iconView = NSImageView()
     private let titleField = NSTextField(labelWithString: "")

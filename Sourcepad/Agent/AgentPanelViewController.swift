@@ -365,6 +365,12 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     private let sendButton = NSButton()
     private let micButton = NSButton()
 
+    // Inline `@`/`/` completion dropdown.
+    private let completionPopup = AgentCompletionPopup()
+
+    // Text of the most recent assistant reply, for the `/copy` command.
+    private var lastAssistantText: String?
+
     // Voice dictation (default backend: Apple Speech, on-device).
     private let dictation: VoiceDictation = AppleSpeechDictation()
     private var dictationPrefix = ""
@@ -584,6 +590,18 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             self?.inputHeight.animator().constant = min(150, max(34, h))
         }
         input.onTextChange = { [weak self] in self?.refreshContextBar() }
+
+        // Inline `@`/`/` completion wiring.
+        input.delegate = input   // created programmatically; set delegate explicitly
+        input.onTrigger = { [weak self] t in self?.handleTrigger(t) }
+        input.isCompletionVisible = { [weak self] in self?.completionPopup.isVisible ?? false }
+        input.moveCompletion = { [weak self] d in self?.completionPopup.move(by: d) ?? false }
+        input.acceptCompletion = { [weak self] in self?.completionPopup.acceptSelected() ?? false }
+        input.dismissCompletion = { [weak self] in
+            guard let self, self.completionPopup.isVisible else { return false }
+            self.completionPopup.hide(); return true
+        }
+        completionPopup.onChoose = { [weak self] item in self?.acceptCompletion(item) }
         input.font = .systemFont(ofSize: 13)
         input.isRichText = false
         input.isEditable = true
@@ -728,6 +746,12 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
                 modelPopup.addItem(withTitle: m.displayName)
                 modelPopup.lastItem?.representedObject = m
             }
+            // Honor the per-CLI default model chosen in Settings → Agent CLIs.
+            if let preferred = Preferences.shared.agentDefaultModel(forCLI: cliID),
+               let idx = (0..<modelPopup.numberOfItems).first(where: {
+                   (modelPopup.item(at: $0)?.representedObject as? AgentModel)?.id == preferred }) {
+                modelPopup.selectItem(at: idx)
+            }
         }
     }
 
@@ -850,6 +874,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     @objc private func newConversation() {
         controller?.cancel()
         controller = nil
+        completionPopup.hide()
         streamingBubble = nil
         toolCards.removeAll()
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -860,8 +885,14 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
 
     @objc private func submit() {
         if dictation.isRunning { dictation.stop(); setMicRecording(false) }
-        let text = input.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        completionPopup.hide()
+        // Display text renders mention chips as `@name`; it is what we persist
+        // and show in the bubble.
+        let text = input.displayText().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        // A bare local slash command (typed, not picked from the popup) runs
+        // instead of being sent to the agent.
+        if runLocalSlashIfPresent(text) { return }
         guard ensureConversation() else {
             appendBubble(role: .system, text: "No agent CLI is available. Install claude, codex, or opencode.")
             return
@@ -870,10 +901,10 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
             appendBubble(role: .system, text: "Budget reached. Raise or clear the budget (click the cost readout) to continue.")
             return
         }
-        // Capture editor context BEFORE clearing the input (the typed text still
-        // holds any `@`-mentions to resolve).
+        // Capture editor context + mention chips BEFORE clearing the input.
         let editorContext = currentEditorContext()
-        input.string = ""
+        let attachmentPaths = input.currentMentions().map { $0.absolutePath }
+        input.clearAll()
         inputHeight.constant = 34
         appendBubble(role: .user, text: text)
         // Assistant bubbles are created lazily on the first text delta so a
@@ -883,7 +914,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         autoFixIterations = 0   // a manual prompt starts a fresh auto-fix budget
         statusLabel.stringValue = "Thinking…"
         sendButton.isEnabled = false
-        controller?.send(text, editorContext: editorContext)
+        controller?.send(text, editorContext: editorContext, attachmentPaths: attachmentPaths)
         refreshContextBar()
     }
 
@@ -908,7 +939,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
 
     private func startDictation() {
         // Append to whatever is already typed (with a separating space).
-        let existing = input.string
+        let existing = input.displayText()
         dictationPrefix = existing.isEmpty || existing.hasSuffix(" ") ? existing : existing + " "
         setMicRecording(true)
         dictation.start(onText: { [weak self] text in
@@ -956,6 +987,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     public func shutdown() {
         controller?.cancel()
         if dictation.isRunning { dictation.stop() }
+        completionPopup.hide()
     }
 
     // MARK: - Editor context
@@ -1025,16 +1057,103 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         contextBarTopGap.constant = hasChips ? 6 : 0
     }
 
-    /// File names of `@`-mentions in the current input that resolve to real
-    /// files (mirrors exactly what `composeAgentPrompt` will attach).
+    /// Names of the `@`-mention chips currently in the input (what will ride
+    /// along as attachments on the next turn).
     private func resolvedMentionNames() -> [String] {
-        let text = input.string
-        guard text.contains("@") else { return [] }
-        let cwd = controller?.workingDirectory
+        input.currentMentions().map { $0.displayName }
+    }
+
+    // MARK: - Inline `@`/`/` completion
+
+    /// Workspace root used to resolve mentions (workspace → doc dir → $HOME).
+    private func completionWorkspaceRoot() -> String {
+        controller?.workingDirectory
             ?? workingDirectoryProvider?()
             ?? FileManager.default.homeDirectoryForCurrentUser.path
-        let result = AgentContextProvider.resolveMentions(in: text, workspaceRoot: cwd, maxBytesPerFile: 1)
-        return result.attachments.map { ($0.path as NSString).lastPathComponent }
+    }
+
+    /// React to an `@`/`/` trigger under the caret by computing results and
+    /// showing (or hiding) the popup.
+    private func handleTrigger(_ trigger: AgentInputTextView.Trigger?) {
+        guard let trigger else { completionPopup.hide(); return }
+        let items: [PaletteItem]
+        switch trigger.kind {
+        case .mention:
+            let active = (NSDocumentController.shared.currentDocument as? TextDocument)?.fileURL?.path
+            items = MentionCompletions.items(query: trigger.query,
+                                             workspaceRoot: completionWorkspaceRoot(),
+                                             activeFilePath: active)
+        case .slash:
+            items = SlashCommandRegistry.items(for: trigger.query)
+        }
+        guard !items.isEmpty else { completionPopup.hide(); return }
+        completionPopup.present(items: items,
+                                caretRectScreen: input.caretRectOnScreen(for: trigger),
+                                host: input)
+    }
+
+    /// Apply a chosen completion. Re-reads the live trigger so the replace range
+    /// reflects the latest text.
+    private func acceptCompletion(_ item: PaletteItem) {
+        guard let trigger = input.activeTrigger() else { return }
+        switch trigger.kind {
+        case .mention:
+            if let m = item.payload as? Mention {
+                input.insertMentionChip(m, replacing: trigger.replaceRange)
+            }
+        case .slash:
+            guard let cmd = item.payload as? SlashCommand else { return }
+            if let template = cmd.template {
+                // Expand the template into the input; the user edits / sends it.
+                input.replace(range: trigger.replaceRange, with: template)
+            } else {
+                input.replace(range: trigger.replaceRange, with: "")
+                runSlashCommand(cmd)
+            }
+        }
+        refreshContextBar()
+    }
+
+    /// If `text` is a bare local slash command, run it and return true.
+    private func runLocalSlashIfPresent(_ text: String) -> Bool {
+        guard text.hasPrefix("/") else { return false }
+        let token = String(text.dropFirst().prefix { !$0.isWhitespace })
+        guard let cmd = SlashCommandRegistry.all.first(where: {
+            $0.id == token || $0.aliases.contains(token) }), !cmd.isTemplate else { return false }
+        input.clearAll()
+        completionPopup.hide()
+        runSlashCommand(cmd)
+        return true
+    }
+
+    /// Dispatch a local `/` command to the matching panel action.
+    private func runSlashCommand(_ cmd: SlashCommand) {
+        switch cmd.id {
+        case "new":     newConversation()
+        case "verify":  runVerify()
+        case "compare": compareTapped()
+        case "history": showHistory()
+        case "model":   modelPopup.performClick(nil)
+        case "cli":     cliPopup.performClick(nil)
+        case "plan":
+            permPopup.selectItem(withTitle: "Plan"); permChanged()
+        case "auto":
+            permPopup.selectItem(withTitle: "Auto"); permChanged()
+        case "budget":
+            if ensureConversation() { setBudgetPrompt() }
+            else { appendBubble(role: .system, text: "Start a conversation before setting a budget.") }
+        case "copy":
+            if let t = lastAssistantText, !t.isEmpty {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(t, forType: .string)
+                statusLabel.stringValue = "Copied last reply"
+            } else {
+                NSSound.beep()
+            }
+        default:
+            break
+        }
+        focusInput()
     }
 
 
@@ -1219,7 +1338,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
     }
 
     @objc private func compareTapped() {
-        let text = input.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = input.displayText().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { NSSound.beep(); return }
         guard comparePending == 0 else { return }
         let harnesses = selectedHarnesses()
@@ -1234,18 +1353,23 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         alert.addButton(withTitle: "Compare")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        runCompare(text: text, harnesses: harnesses)
+        let attachmentPaths = input.currentMentions().map { $0.absolutePath }
+        runCompare(text: text, attachmentPaths: attachmentPaths, harnesses: harnesses)
     }
 
-    private func runCompare(text: String, harnesses: [(cli: AgentCLI, model: AgentModel?)]) {
+    private func runCompare(text: String, attachmentPaths: [String],
+                            harnesses: [(cli: AgentCLI, model: AgentModel?)]) {
         guard ensureConversation(), let controller else { return }
         let cwd = controller.workingDirectory
         let editorContext = currentEditorContext()
-        input.string = ""
+        completionPopup.hide()
+        input.clearAll()
         inputHeight.constant = 34
         appendBubble(role: .user, text: text)
 
-        let composed = AgentContextProvider.composeAgentPrompt(typed: text, workspaceRoot: cwd, context: editorContext)
+        let composed = AgentContextProvider.composeAgentPrompt(typed: text, workspaceRoot: cwd,
+                                                               context: editorContext,
+                                                               explicitPaths: attachmentPaths)
         let reseed = controller.contextReseed()
 
         compareCards = [:]; compareHandles = []; compareTexts = [:]
@@ -1313,6 +1437,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         controller.switchCLI(cli.id, model: model)
         syncPickers(toCLI: cli.id, model: model)
 
+        if !chosen.isEmpty { lastAssistantText = chosen }
         appendBubble(role: .assistant, text: chosen.isEmpty ? "_(no output)_" : chosen)
         compareButton.isEnabled = true
         sendButton.isEnabled = true
@@ -1384,6 +1509,7 @@ public final class AgentPanelViewController: NSViewController, AgentConversation
         } else if let b = streamingBubble, b.text.isEmpty {
             b.setText("_(no output)_")
         }
+        if let b = streamingBubble, !b.text.isEmpty { lastAssistantText = b.text }
         streamingBubble = nil
         scrollToBottom()
 
