@@ -10,6 +10,7 @@
 // pass a single URL keep working — internally it routes through addRoot.
 
 import AppKit
+import CoreServices
 
 /// NSAlert subclass that surfaces its accessory text field for easy retrieval.
 final class NameAlert: NSAlert {
@@ -61,6 +62,10 @@ public final class SidebarViewController: NSViewController,
     // Cache of children per URL so the outline doesn't re-read the filesystem
     // on every isItemExpandable / numberOfChildren call.
     private var childrenCache: [URL: [URL]] = [:]
+
+    // Watches the workspace roots so files copied/created/deleted on disk by
+    // other tools (Finder, git, the terminal) appear in the tree live.
+    private let fileWatcher = SidebarFileWatcher()
 
     private let outlinePanel = OutlineSidebarPanel()
     private let tasksPanel   = TasksSidebarPanel()
@@ -175,6 +180,7 @@ public final class SidebarViewController: NSViewController,
         ])
 
         self.view = root
+        fileWatcher.onChange = { [weak self] in self?.liveRefresh() }
         applyWorkspace()
 
         NotificationCenter.default.addObserver(
@@ -186,6 +192,7 @@ public final class SidebarViewController: NSViewController,
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        fileWatcher.stop()
     }
 
     // MARK: - Public API
@@ -240,8 +247,8 @@ public final class SidebarViewController: NSViewController,
     }
 
     @objc public func refreshTapped(_ sender: Any?) {
-        childrenCache.removeAll()
-        outline.reloadData()
+        // Preserve the user's expansion/selection, then ensure roots stay open.
+        liveRefresh()
         for r in workspace.roots { outline.expandItem(r) }
     }
 
@@ -336,6 +343,35 @@ public final class SidebarViewController: NSViewController,
         updateHeader()
         updateEmptyState()
         for r in workspace.roots { outline.expandItem(r) }
+        fileWatcher.watch(roots: workspace.roots)
+    }
+
+    /// React to an on-disk change picked up by the file watcher: re-read the
+    /// affected directories while preserving the user's current expansion and
+    /// selection, so newly copied/created files appear without collapsing the
+    /// tree or losing the highlighted row.
+    private func liveRefresh() {
+        let expanded = expandedURLs()
+        let selected = outline.item(atRow: outline.selectedRow) as? URL
+        childrenCache.removeAll()
+        outline.reloadData()
+        for url in expanded { outline.expandItem(url) }
+        if let selected {
+            let row = outline.row(forItem: selected)
+            if row >= 0 { outline.selectRowIndexes([row], byExtendingSelection: false) }
+        }
+    }
+
+    /// Snapshot every folder that is currently expanded (top-down order so the
+    /// restore re-expands parents before children).
+    private func expandedURLs() -> [URL] {
+        var result: [URL] = []
+        for row in 0..<outline.numberOfRows {
+            if let url = outline.item(atRow: row) as? URL, outline.isItemExpanded(url) {
+                result.append(url)
+            }
+        }
+        return result
     }
 
     private func updateHeader() {
@@ -430,6 +466,7 @@ public final class SidebarViewController: NSViewController,
             ("Move to Trash", #selector(menuMoveToTrash(_:))),
             ("Reveal in Finder", #selector(menuReveal(_:))),
             ("Copy Path",     #selector(menuCopyPath(_:))),
+            ("Refresh",       #selector(refreshTapped(_:))),
             ("Show Hidden Files", #selector(menuToggleHidden(_:))),
             ("Remove from Workspace", #selector(menuRemoveRoot(_:))),
         ] {
@@ -437,7 +474,7 @@ public final class SidebarViewController: NSViewController,
             item.target = self
             menu.addItem(item)
             if title == "New Folder" || title == "Move to Trash"
-                || title == "Copy Path" || title == "Show Hidden Files" {
+                || title == "Refresh" || title == "Show Hidden Files" {
                 menu.addItem(.separator())
             }
         }
@@ -624,4 +661,74 @@ public final class SidebarViewController: NSViewController,
         childrenCache[url] = sorted
         return sorted
     }
+}
+
+// MARK: - Filesystem watcher
+
+/// Watches one or more folder roots (recursively) via FSEvents and fires
+/// `onChange` on the main queue whenever anything inside them is created,
+/// deleted, renamed, or modified. FSEvents already coalesces bursts within its
+/// latency window, so the callback fires at most a few times per second even
+/// during a large copy. The sidebar uses this to keep the file tree in sync
+/// with on-disk changes made by Finder, git, the terminal, or other tools.
+final class SidebarFileWatcher {
+
+    /// Invoked on the main queue after a batch of filesystem changes.
+    var onChange: (() -> Void)?
+
+    private var stream: FSEventStreamRef?
+    private let queue = DispatchQueue(label: "com.sourcepad.sidebar-file-watcher")
+
+    /// Begin watching `roots`. Replaces any existing watch. A no-op (after
+    /// tearing down) when `roots` is empty.
+    func watch(roots: [URL]) {
+        stop()
+        let paths = roots.map { $0.resolvingSymlinksInPath().path }
+        guard !paths.isEmpty else { return }
+
+        var context = FSEventStreamContext(
+            version: 0,
+            info: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+            retain: nil,
+            release: nil,
+            copyDescription: nil)
+
+        let flags: UInt32 =
+            UInt32(kFSEventStreamCreateFlagFileEvents) |
+            UInt32(kFSEventStreamCreateFlagNoDefer) |
+            UInt32(kFSEventStreamCreateFlagWatchRoot)
+
+        guard let stream = FSEventStreamCreate(
+            kCFAllocatorDefault,
+            { (_, info, _, _, _, _) in
+                guard let info else { return }
+                let watcher = Unmanaged<SidebarFileWatcher>.fromOpaque(info).takeUnretainedValue()
+                DispatchQueue.main.async { watcher.onChange?() }
+            },
+            &context,
+            paths as CFArray,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.3,                          // latency: coalesce rapid bursts
+            flags
+        ) else { return }
+
+        FSEventStreamSetDispatchQueue(stream, queue)
+        if !FSEventStreamStart(stream) {
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            return
+        }
+        self.stream = stream
+    }
+
+    /// Stop and release the active stream, if any.
+    func stop() {
+        guard let stream else { return }
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        FSEventStreamRelease(stream)
+        self.stream = nil
+    }
+
+    deinit { stop() }
 }
