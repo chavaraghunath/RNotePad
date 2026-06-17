@@ -32,6 +32,10 @@
     <string>Copyright © 2026 Raghunath Chava. Released under the MIT License.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
     <key>NSAppleEventsUsageDescription</key>
     <string>Sourcepad uses Apple Events to open files passed via 'open' / Finder.</string>
     <key>NSMicrophoneUsageDescription</key>
