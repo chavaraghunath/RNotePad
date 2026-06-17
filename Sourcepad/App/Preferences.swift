@@ -161,6 +161,20 @@ public final class Preferences {
         set { defaults.set(newValue, forKey: "Sourcepad.debugLoggingEnabled"); notify() }
     }
 
+    /// Per-CLI default model id, chosen in the Agent CLIs → Configure sheet. The
+    /// agent panel seeds a new conversation with this when present; nil falls back
+    /// to the CLI's first discovered model.
+    public func agentDefaultModel(forCLI id: String) -> String? {
+        let map = defaults.dictionary(forKey: "Sourcepad.agentDefaultModels") as? [String: String]
+        let v = map?[id]
+        return (v?.isEmpty == false) ? v : nil
+    }
+    public func setAgentDefaultModel(_ modelID: String?, forCLI id: String) {
+        var map = (defaults.dictionary(forKey: "Sourcepad.agentDefaultModels") as? [String: String]) ?? [:]
+        if let modelID, !modelID.isEmpty { map[id] = modelID } else { map.removeValue(forKey: id) }
+        defaults.set(map, forKey: "Sourcepad.agentDefaultModels"); notify()
+    }
+
     // MARK: - Workspace (Phase 2)
 
     /// Stable id of the active workspace. nil = pick whichever exists first
