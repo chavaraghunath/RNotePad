@@ -30,10 +30,19 @@ if let flagIndex = CommandLine.arguments.firstIndex(of: "--reindex") {
         }
     }
     let ws = existing ?? Workspace(name: target.lastPathComponent, roots: [target])
-    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-    let dbURL = support.appendingPathComponent("Sourcepad/Workspaces", isDirectory: true)
-        .appendingPathComponent("\(ws.id).db", isDirectory: false)
+    // For a real indexed workspace, write its on-disk DB so --sourcegraph-mcp
+    // picks the symbols up. For an ad-hoc folder, use a TEMP DB so we don't
+    // orphan an unresolvable .db in the user's Workspaces directory.
+    let dbURL: URL
+    if existing != nil {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        dbURL = support.appendingPathComponent("Sourcepad/Workspaces", isDirectory: true)
+            .appendingPathComponent("\(ws.id).db", isDirectory: false)
+    } else {
+        dbURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("sourcepad-reindex-\(ws.id).db", isDirectory: false)
+    }
     guard let index = ProjectIndex(databaseURL: dbURL) else {
         FileHandle.standardError.write(Data("could not open index\n".utf8)); exit(1)
     }

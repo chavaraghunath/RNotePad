@@ -45,7 +45,8 @@ public enum SymbolExtractor {
                let nameNode = language.nameNode(of: child),
                case let name = nameNode.text(in: bytes), isReasonableName(name) {
                 let p = nameNode.startPoint
-                out.append(ExtractedSymbol(name: name, kind: symKind, line: Int(p.row), col: Int(p.column)))
+                let kind = language.refineKind(symKind, name: name)
+                out.append(ExtractedSymbol(name: name, kind: kind, line: Int(p.row), col: Int(p.column)))
                 enclosingForChildren = childKind
             } else if language.symbolKind(forNodeKind: childKind, enclosing: enclosing) != nil
                         || language.isScopeContainer(childKind) {
@@ -125,6 +126,7 @@ extension TreeSitterLanguage {
         case .rust:
             switch nodeKind {
             case "function_item":  return isClassLike(enclosing) ? "method" : "function"
+            case "function_signature_item": return "method"   // trait method w/o body
             case "struct_item":    return "struct"
             case "enum_item":      return "enum"
             case "trait_item":     return "interface"
@@ -186,6 +188,18 @@ extension TreeSitterLanguage {
             if c.kind.hasSuffix("identifier") { return c }
         }
         return nil
+    }
+
+    /// Refine a symbol kind using the resolved name. Out-of-line C/C++ method
+    /// definitions live at file scope but carry a qualified name (`A::m`), so
+    /// reclassify those from function → method.
+    func refineKind(_ kind: String, name: String) -> String {
+        switch self {
+        case .c, .cpp:
+            return (kind == "function" && name.contains("::")) ? "method" : kind
+        default:
+            return kind
+        }
     }
 
     /// Non-symbol nodes that still establish a member scope (so functions inside

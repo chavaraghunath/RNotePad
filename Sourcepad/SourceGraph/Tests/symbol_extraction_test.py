@@ -31,7 +31,7 @@ CASES = {
   "c":   ("struct Node { int v; };\nenum Color { RED };\nint add(int a){ return a; }\n",
           {("struct","Node"),("enum","Color"),("function","add")}),
   "cpp": ("class W { public: void r(); };\nvoid W::r() {}\nstruct P { int x; };\nint main(){return 0;}\n",
-          {("class","W"),("struct","P"),("function","main"),("function","W::r")}),
+          {("class","W"),("struct","P"),("function","main"),("method","W::r")}),
   "js":  ("function greet(n){return n;}\nclass A { speak(){} }\n",
           {("function","greet"),("class","A"),("method","speak")}),
   "ts":  ("interface S { area(): number; }\ntype ID = string;\nclass C implements S { area(){return 1;} }\nenum D { Up }\n",

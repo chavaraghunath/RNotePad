@@ -329,30 +329,33 @@ public final class IndexerCoordinator {
             contentHash: contentHash
         ) else { return }
 
-        // Re-extract symbols only when the file changed, or when it has no
-        // symbols yet (e.g. first run after this feature shipped). This keeps
-        // re-scans cheap — unchanged files aren't re-parsed.
         let changed = priorHash == nil || priorHash != contentHash
-        if changed || index.symbolCount(fileID: fileID) == 0 {
-            extractSymbols(fileID: fileID, url: url, language: language, size: size)
+        if changed {
+            // Content changed — recompute symbols. We ALWAYS replace (even with
+            // an empty set) so a file that lost its symbols, became unsupported,
+            // or grew too large doesn't leave stale definitions in the graph.
+            index.replaceSymbols(symbolRows(fileID: fileID, url: url, size: size), forFileID: fileID)
+        } else if index.symbolCount(fileID: fileID) == 0,
+                  TreeSitterLanguage.forFilename(url.lastPathComponent) != nil {
+            // Unchanged but never symbolized (first scan after this shipped) —
+            // backfill, but only for files we can actually extract.
+            let rows = symbolRows(fileID: fileID, url: url, size: size)
+            if !rows.isEmpty { index.replaceSymbols(rows, forFileID: fileID) }
         }
         delegate?.indexer(self, didUpsertFileID: fileID, absolutePath: absolutePath, language: language)
     }
 
     /// Parse the file with Tree-sitter (for languages we have a grammar for) and
-    /// store its symbols, so SourceGraph and any symbol queries are populated.
-    /// Skipped for unsupported languages and oversized files.
-    private func extractSymbols(fileID: Int64, url: URL, language: String?, size: Int64) {
+    /// return its symbol rows. Returns [] for unsupported languages, oversized,
+    /// unreadable, or non-UTF-8 files — the caller uses [] to clear stale rows.
+    private func symbolRows(fileID: Int64, url: URL, size: Int64) -> [ProjectIndex.SymbolRow] {
         guard let tsLang = TreeSitterLanguage.forFilename(url.lastPathComponent),
               size > 0, size <= Self.maxSymbolParseBytes,
               let data = try? Data(contentsOf: url),
-              let source = String(data: data, encoding: .utf8) else { return }
-        let symbols = SymbolExtractor.extract(source: source, language: tsLang)
-        guard !symbols.isEmpty else { return }
-        let rows = symbols.map {
+              let source = String(data: data, encoding: .utf8) else { return [] }
+        return SymbolExtractor.extract(source: source, language: tsLang).map {
             ProjectIndex.SymbolRow(fileID: fileID, name: $0.name, kind: $0.kind, line: $0.line, col: $0.col)
         }
-        index.replaceSymbols(rows, forFileID: fileID)
     }
 
     /// Don't parse very large files for symbols (keeps the indexer responsive).
@@ -389,11 +392,17 @@ public final class IndexerCoordinator {
             defer { try? fh.close() }
             prefix = (try? fh.read(upToCount: 256)) ?? Data()
         }
-        var hasher = Hasher()
-        hasher.combine(size)
-        hasher.combine(mtime)
-        hasher.combine(prefix)
-        let value = hasher.finalize()
-        return String(value, radix: 16)
+        // Deterministic FNV-1a 64-bit. Swift's `Hasher` is randomly seeded PER
+        // PROCESS, so it would produce a different hash for the same unchanged
+        // file on every launch — defeating change detection and forcing a full
+        // re-parse each run. FNV-1a is stable across processes.
+        var h: UInt64 = 0xcbf29ce484222325
+        func mix(_ bytes: [UInt8]) {
+            for b in bytes { h ^= UInt64(b); h = h &* 0x100000001b3 }
+        }
+        mix(withUnsafeBytes(of: size.littleEndian) { Array($0) })
+        mix(withUnsafeBytes(of: mtime.bitPattern.littleEndian) { Array($0) })
+        mix(Array(prefix))
+        return String(h, radix: 16)
     }
 }
