@@ -796,6 +796,7 @@ enum WorkspaceMenu {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Add to Workspace"
         guard panel.runModal() == .OK, let url = panel.url else { return }
