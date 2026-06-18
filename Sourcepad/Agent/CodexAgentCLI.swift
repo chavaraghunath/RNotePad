@@ -66,8 +66,11 @@ public final class CodexAgentCLI: AgentCLI {
             return NullTurnHandle()
         }
 
+        // `resume` is a SUBCOMMAND of `codex exec`, so every exec-level option
+        // (-C, --json, --sandbox, -m, --skip-git-repo-check) must come BEFORE the
+        // `resume <id>` token — otherwise the resume parser rejects them with
+        // "unexpected argument '-C'". Order: exec <opts> [resume <id>] <prompt>.
         var args = ["exec"]
-        if let sid = request.nativeSessionID { args += ["resume", sid] }
         args += ["--json", "--skip-git-repo-check", "-C", request.workingDirectory]
         switch request.permission {
         case .readOnly, .ask: args += ["--sandbox", "read-only"]
@@ -78,6 +81,7 @@ public final class CodexAgentCLI: AgentCLI {
             args += ["--sandbox", sandbox, "-c", "approval_policy=\"never\""]
         }
         if let model = request.model { args += ["-m", model] }
+        if let sid = request.nativeSessionID { args += ["resume", sid] }
         args.append(composePrompt(request))
 
         var finished = false
